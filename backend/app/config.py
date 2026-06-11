@@ -22,7 +22,7 @@ class Settings:
     
     # 預設本地 LLM 伺服器 (如 Ollama API 或 LocalAI)
     LLM_API_URL: str = os.getenv("LLM_API_URL", "http://192.168.0.110:8001/v1")
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "llama3") # 可以由用戶自由設定
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "openai/gpt-oss-120b") # 可以由用戶自由設定
 
 settings = Settings()
 

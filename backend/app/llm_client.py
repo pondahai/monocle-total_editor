@@ -91,6 +91,23 @@ class AIClient:
                         "temperature": 0.7
                     }
                     response = await client.post(openai_url, json=openai_payload)
+                    
+                    # 智慧自我修正：若回傳 404 (或 400) 代表模型名稱不合，自動從 /v1/models 動態選取第一個可用模型重新請求
+                    if response.status_code in (404, 400):
+                        try:
+                            models_url = url if url.endswith("/v1") else f"{base_url}/v1"
+                            models_url = f"{models_url.rstrip('/')}/models"
+                            models_res = await client.get(models_url)
+                            if models_res.status_code == 200:
+                                models_data = models_res.json()
+                                if "data" in models_data and len(models_data["data"]) > 0:
+                                    first_model = models_data["data"][0]["id"]
+                                    logger.warning(f"本地伺服器找不到指定模型 {model_name}。已自動修正為伺服器可用模型: {first_model}")
+                                    openai_payload["model"] = first_model
+                                    response = await client.post(openai_url, json=openai_payload)
+                        except Exception as inner_e:
+                            logger.error(f"智慧修正模型名稱時發生錯誤: {str(inner_e)}")
+                            
                     if response.status_code == 200:
                         return response.json()["choices"][0]["message"]["content"].strip()
                 

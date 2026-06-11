@@ -79,7 +79,7 @@ class AIClient:
             openai_url = f"{url.rstrip('/')}/v1/chat/completions"
             
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=300.0) as client:
                 # 1. 優先嘗試以 OpenAI 相容格式發送 (因為設定了 /v1/models 這類 OpenAI 格式)
                 if "/v1" in url or "/v1/models" in url:
                     openai_payload = {

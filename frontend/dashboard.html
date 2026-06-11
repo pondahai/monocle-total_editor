@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monocle - Total Editor & Portfolio Manager</title>
+    <!-- Google Fonts Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body class="dark-theme">
+    <!-- 背景光效 -->
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <div class="app-container">
+        <!-- 1. 左側導航欄 (Sidebar) -->
+        <aside class="sidebar-panel">
+            <div class="brand">
+                <div class="logo-icon"><i class="fa-solid fa-glasses"></i></div>
+                <div class="brand-text">
+                    <h1>Monocle</h1>
+                    <span>Total Editor</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-tab="workspace">
+                    <i class="fa-solid fa-feather-pointed"></i> <span>寫作工作區</span>
+                </button>
+                <button class="nav-btn" data-tab="projects">
+                    <i class="fa-solid fa-folder-tree"></i> <span>專案管理</span>
+                </button>
+                <button class="nav-btn" data-tab="scheduler">
+                    <i class="fa-solid fa-calendar-day"></i> <span>今日排程</span>
+                    <span class="badge" id="daily-task-count">0</span>
+                </button>
+                <button class="nav-btn" data-tab="materials">
+                    <i class="fa-solid fa-book-bookmark"></i> <span>背景知識庫</span>
+                </button>
+            </nav>
+
+            <div class="active-project-card glass-card">
+                <div class="card-label">當前活躍專案</div>
+                <h3 id="sidebar-active-project-name">無活躍專案</h3>
+                <p id="sidebar-active-project-desc">請至專案管理建立或選擇專案</p>
+                <div class="active-chapter-info">
+                    <i class="fa-solid fa-bookmark"></i> <span id="sidebar-active-chapter-name">無活躍章節</span>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot online"></span>
+                    <span class="status-text">本地 API 已連線</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 2. 右側主工作區 -->
+        <main class="main-content">
+            <!-- 頂部全局狀態列 (含 ADHD 計時器) -->
+            <header class="top-header glass-card">
+                <div class="header-project-selector">
+                    <label for="global-project-select"><i class="fa-solid fa-folder"></i> 專案切換：</label>
+                    <select id="global-project-select" class="styled-select">
+                        <option value="">請選擇專案...</option>
+                    </select>
+                </div>
+
+                <!-- ADHD 視覺計時器 -->
+                <div class="timer-widget">
+                    <div class="timer-circle-container">
+                        <svg class="timer-svg" viewBox="0 0 100 100">
+                            <circle class="timer-bg-circle" cx="50" cy="50" r="45"></circle>
+                            <circle class="timer-progress-circle" id="timer-progress" cx="50" cy="50" r="45"></circle>
+                        </svg>
+                        <div class="timer-text" id="timer-display">20:00</div>
+                    </div>
+                    <div class="timer-controls">
+                        <button id="btn-timer-toggle" class="btn-icon btn-primary" title="開始/暫停"><i class="fa-solid fa-play"></i></button>
+                        <button id="btn-timer-reset" class="btn-icon" title="重設為 20 分鐘"><i class="fa-solid fa-rotate-left"></i></button>
+                    </div>
+                    <div class="timer-status">
+                        <span class="label">聚焦微任務：</span>
+                        <span id="active-task-title" class="task-title-text">未選擇任務</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 頁面容器 -->
+            <section class="tab-content-container">
+                <!-- Tab 1: 寫作工作區 -->
+                <div class="tab-pane active" id="tab-workspace">
+                    <div class="workspace-layout">
+                        <!-- 大綱導航樹 -->
+                        <div class="workspace-left glass-card">
+                            <div class="panel-header">
+                                <h2>章節目錄</h2>
+                                <button class="btn-sm" id="btn-refresh-outlines"><i class="fa-solid fa-arrows-rotate"></i></button>
+                            </div>
+                            <div class="outline-tree-list" id="workspace-outline-list">
+                                <div class="empty-state">請先選擇或建立專案</div>
+                            </div>
+                        </div>
+
+                        <!-- 編輯器主體 -->
+                        <div class="workspace-center glass-card">
+                            <div class="editor-header">
+                                <div class="editor-title-area">
+                                    <span class="status-badge" id="chapter-status-badge">DRAFT</span>
+                                    <h2 id="editor-current-chapter-title">請選擇章節開始寫作</h2>
+                                </div>
+                                <div class="editor-actions">
+                                    <button class="btn-secondary" id="btn-save-draft"><i class="fa-solid fa-floppy-disk"></i> 暫存草稿</button>
+                                    <button class="btn-primary" id="btn-polish-draft"><i class="fa-solid fa-wand-magic-sparkles"></i> 一鍵潤飾 (AI)</button>
+                                </div>
+                            </div>
+                            <div class="editor-body">
+                                <textarea id="draft-textarea" placeholder="在這裡寫下您的碎片化草稿或靈感靈光...草稿模式下無需介意錯字與排版，儘管記錄下來！"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- 側邊輔助欄 (RAG 推薦材料與歷史版本) -->
+                        <div class="workspace-right">
+                            <div class="context-materials-panel glass-card">
+                                <div class="panel-header">
+                                    <h3><i class="fa-solid fa-brain text-purple"></i> 當前關聯素材 (RAG)</h3>
+                                </div>
+                                <div class="materials-context-list" id="workspace-context-materials">
+                                    <div class="empty-state">點選章節或輸入草稿後，系統將自動推薦背景素材。</div>
+                                </div>
+                            </div>
+
+                            <div class="ai-polish-result-panel glass-card">
+                                <div class="panel-header">
+                                    <h3><i class="fa-solid fa-sparkles text-cyan"></i> AI 潤飾對比區</h3>
+                                </div>
+                                <div class="polish-result-content">
+                                    <div id="polish-placeholder" class="empty-state">等待 AI 潤飾執行...</div>
+                                    <div id="polish-result-wrapper" class="hidden">
+                                        <div class="result-text" id="polished-text-box"></div>
+                                        <button class="btn-primary btn-full" id="btn-apply-polished"><i class="fa-solid fa-check"></i> 採納並覆蓋草稿</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: 專案管理 -->
+                <div class="tab-pane" id="tab-projects">
+                    <div class="projects-layout">
+                        <!-- 左側：專案清單與新增 -->
+                        <div class="projects-left glass-card">
+                            <div class="panel-header">
+                                <h2>建立新專案</h2>
+                            </div>
+                            <form id="form-create-project" class="styled-form">
+                                <div class="form-group">
+                                    <label for="proj-name">專案名稱</label>
+                                    <input type="text" id="proj-name" required placeholder="例如：硬核科幻短篇、React 技術說明...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="proj-desc">專案描述</label>
+                                    <textarea id="proj-desc" placeholder="簡單描述這個專案的目標與受眾..."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="proj-persona">寫作文風 Persona (System Prompt)</label>
+                                    <textarea id="proj-persona" placeholder="例如：你是一位文筆冷靜精煉、注重物理細節的科幻主編。請用硬核且具畫面感的文體進行文字潤飾。"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="proj-deadline">截止日期 (Deadline)</label>
+                                    <input type="datetime-local" id="proj-deadline">
+                                </div>
+                                <button type="submit" class="btn-primary btn-full"><i class="fa-solid fa-plus"></i> 建立專案</button>
+                            </form>
+                        </div>
+
+                        <!-- 右側：現有專案列表與大綱管理 -->
+                        <div class="projects-right glass-card">
+                            <div class="panel-header">
+                                <h2>您的專案清單</h2>
+                            </div>
+                            <div class="project-cards-grid" id="project-list-grid">
+                                <!-- Cards will be loaded here -->
+                            </div>
+                            
+                            <!-- 專案大綱設定與切碎面板 (當選擇某個專案時顯示) -->
+                            <div class="project-outline-manager hidden" id="project-outline-manager-panel">
+                                <hr class="panel-divider">
+                                <div class="panel-header">
+                                    <h2 id="outline-manager-title">專案大綱結構管理</h2>
+                                    <button class="btn-secondary" id="btn-open-decompose-modal"><i class="fa-solid fa-scissors"></i> AI 拆解微任務</button>
+                                </div>
+                                
+                                <div class="outline-editor-layout">
+                                    <div class="outline-add-box">
+                                        <form id="form-add-outline" class="styled-form inline-form">
+                                            <input type="text" id="outline-title" placeholder="章節名稱..." required>
+                                            <input type="number" id="outline-order" placeholder="順序" value="0" style="width: 70px;">
+                                            <button type="submit" class="btn-primary">新增章節</button>
+                                        </form>
+                                    </div>
+                                    <div class="outline-table-container">
+                                        <table class="styled-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>順序</th>
+                                                    <th>章節標題</th>
+                                                    <th>當前狀態</th>
+                                                    <th>建立時間</th>
+                                                    <th>操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="project-outlines-table-body">
+                                                <!-- Outlines loaded dynamically -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: 今日排程 (ADHD 聚焦流) -->
+                <div class="tab-pane" id="tab-scheduler">
+                    <div class="scheduler-layout glass-card">
+                        <div class="scheduler-header">
+                            <div class="title-area">
+                                <h2>ADHD 每日「聚焦微任務」清單</h2>
+                                <p>系統自動根據所有專案截止日期的緊迫性，每日為您科學配盤上限 5 個的微任務。專注於眼前 20 分鐘的事，防止認知過載。</p>
+                            </div>
+                            <button class="btn-primary" id="btn-refresh-schedule"><i class="fa-solid fa-arrows-rotate"></i> 重新排程</button>
+                        </div>
+
+                        <div class="daily-task-timeline" id="daily-task-timeline-container">
+                            <!-- Tasks loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: 背景知識庫 (RAG) -->
+                <div class="tab-pane" id="tab-materials">
+                    <div class="materials-layout">
+                        <!-- 新增知識/檔案 -->
+                        <div class="materials-left glass-card">
+                            <div class="panel-header">
+                                <h2>上傳/匯入背景材料</h2>
+                            </div>
+                            <form id="form-ingest-material" class="styled-form">
+                                <div class="form-group">
+                                    <label for="material-project-select">綁定專案</label>
+                                    <select id="material-project-select" required class="styled-select">
+                                        <option value="">請選擇專案...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="material-outline-select">錨定大綱章節 (選用)</label>
+                                    <select id="material-outline-select" class="styled-select">
+                                        <option value="">全局材料 (不錨定章節)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="material-filename">材料標題 / 檔案名稱</label>
+                                    <input type="text" id="material-filename" required placeholder="例如：AP-9 外骨骼設定細節.txt">
+                                </div>
+                                <div class="form-group">
+                                    <label for="material-content">參考材料正文內容</label>
+                                    <textarea id="material-content" required style="height: 250px;" placeholder="在此貼上參考文獻、PDF 轉出的純文字、或是網頁內容...系統會自動將其切片並寫入該專案的物理隔離向量空間中。"></textarea>
+                                </div>
+                                <button type="submit" class="btn-primary btn-full"><i class="fa-solid fa-file-import"></i> 寫入隔離向量庫</button>
+                            </form>
+                        </div>
+
+                        <!-- 檔案清單與檢索測試 -->
+                        <div class="materials-right glass-card">
+                            <div class="panel-header">
+                                <h2>知識庫管理與檢索驗證</h2>
+                            </div>
+                            
+                            <div class="materials-search-test">
+                                <h3><i class="fa-solid fa-magnifying-glass"></i> 本地 RAG 相似度檢索測試</h3>
+                                <div class="search-form-row">
+                                    <input type="text" id="material-search-query" placeholder="輸入搜尋詞測試餘弦相似度檢索...">
+                                    <button class="btn-secondary" id="btn-test-search"><i class="fa-solid fa-search"></i> 測試</button>
+                                </div>
+                                <div class="search-results-list" id="material-search-results">
+                                    <!-- Search results list -->
+                                </div>
+                            </div>
+                            
+                            <hr class="panel-divider">
+                            
+                            <h3>已上傳文獻清單</h3>
+                            <div class="materials-table-container">
+                                <table class="styled-table">
+                                    <thead>
+                                        <tr>
+                                            <th>檔案名稱</th>
+                                            <th>錨定章節</th>
+                                            <th>建立時間</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="materials-list-table-body">
+                                        <!-- Materials list loaded dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 4.彈出視窗 (Modal)：AI 大綱拆解微任務 -->
+    <div class="modal-backdrop hidden" id="decompose-modal">
+        <div class="modal-container glass-card">
+            <div class="modal-header">
+                <h2>AI 自動將大綱切碎為微步驟</h2>
+                <button class="modal-close-btn" id="btn-close-decompose-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="helper-text">輸入宏觀的章節大綱、想要涵蓋的靈感情節，AI 將自動幫您分解成多個可在 20 分鐘內專注完成的極度具體小行動。</p>
+                <div class="form-group">
+                    <label for="decompose-project-select">專案與章節</label>
+                    <div class="inline-fields">
+                        <input type="text" id="decompose-project-name" readonly class="styled-input readonly-input">
+                        <input type="text" id="decompose-outline-name" readonly class="styled-input readonly-input">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="decompose-macro-text">宏觀情節/內容大綱</label>
+                    <textarea id="decompose-macro-text" required placeholder="在此貼上該章節的大綱或您隨興想寫的靈感，例如：主角必須克服重力飛船，出發前和母親做感傷的告別..." style="height: 180px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btn-cancel-decompose">取消</button>
+                <button class="btn-primary" id="btn-execute-decompose"><i class="fa-solid fa-scissors"></i> 開始切碎大綱</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 粒子撒紙花 Canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

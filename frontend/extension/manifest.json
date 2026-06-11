@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Monocle Companion",
+  "version": "1.0.0",
+  "description": "Monocle ADHD-friendly writing companion and AI editor sidebar.",
+
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "開啟 Monocle 隨身教練"
+  },
+  "side_panel": {
+    "default_path": "sidebar.html"
+  }
+}

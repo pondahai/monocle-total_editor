@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monocle Coach</title>
+    <!-- Outfit Font & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="sidebar.css">
+</head>
+<body class="dark-theme">
+    <div class="sidebar-container">
+        <!-- Brand / Logo -->
+        <header class="sidebar-header">
+            <div class="brand">
+                <i class="fa-solid fa-glasses logo-icon"></i>
+                <div class="brand-text">
+                    <h2>Monocle</h2>
+                    <span>Companion Coach</span>
+                </div>
+            </div>
+            <div class="api-status">
+                <span class="status-dot" id="api-status-dot"></span>
+            </div>
+        </header>
+
+        <!-- 1. ADHD Visual Timer (聚焦核心) -->
+        <section class="section-timer glass-card">
+            <div class="timer-display-row">
+                <div class="timer-svg-box">
+                    <svg viewBox="0 0 100 100">
+                        <circle class="timer-circle-bg" cx="50" cy="50" r="45"></circle>
+                        <circle class="timer-circle-progress" id="timer-progress" cx="50" cy="50" r="45"></circle>
+                    </svg>
+                    <div class="timer-digits" id="timer-display">20:00</div>
+                </div>
+                <div class="timer-controls">
+                    <button class="btn-icon btn-primary" id="btn-timer-toggle"><i class="fa-solid fa-play"></i></button>
+                    <button class="btn-icon" id="btn-timer-reset" title="重設"><i class="fa-solid fa-rotate-left"></i></button>
+                </div>
+            </div>
+            <div class="current-task-box">
+                <span class="label">當前聚焦任務：</span>
+                <div class="task-title" id="active-task-title">未選擇任務</div>
+                <button class="btn-sm btn-primary hidden" id="btn-complete-task" style="margin-top: 10px; width: 100%;"><i class="fa-solid fa-check"></i> 完成此任務 (多巴胺回饋)</button>
+            </div>
+        </section>
+
+        <!-- 2. 專案與章節選擇器 -->
+        <section class="section-selector glass-card">
+            <div class="form-group">
+                <label for="project-select">寫作專案</label>
+                <select id="project-select" class="styled-select">
+                    <option value="">載入專案中...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="chapter-select">大綱章節</label>
+                <select id="chapter-select" class="styled-select">
+                    <option value="">請先選擇專案</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- 3. 脈絡化參考材料 (RAG) -->
+        <section class="section-materials glass-card">
+            <div class="section-header">
+                <h3><i class="fa-solid fa-brain text-purple"></i> 章節背景參考資料</h3>
+                <button class="btn-text-sm" id="btn-refresh-materials" title="重新載入"><i class="fa-solid fa-sync"></i></button>
+            </div>
+            <div class="materials-list" id="materials-container">
+                <div class="empty-state">選擇章節後自動撈取關聯素材</div>
+            </div>
+        </section>
+
+        <!-- 4. 網頁一鍵選取與 AI 潤飾 -->
+        <section class="section-editor glass-card">
+            <div class="section-header">
+                <h3><i class="fa-solid fa-wand-magic-sparkles text-pink"></i> 網頁寫作一鍵潤飾</h3>
+            </div>
+            <div class="editor-actions-row">
+                <button class="btn-secondary" id="btn-grab-text"><i class="fa-solid fa-copy"></i> 抓取網頁選取</button>
+                <button class="btn-primary" id="btn-polish"><i class="fa-solid fa-sparkles"></i> 一鍵潤飾</button>
+            </div>
+            <div class="draft-compare-box">
+                <label>選取的草稿：</label>
+                <textarea id="draft-input" placeholder="可在此直接輸入或點擊上方「抓取網頁選取」抓取網頁上反白的草稿文字..."></textarea>
+            </div>
+            <div class="polish-result-box hidden" id="result-box-wrapper">
+                <label class="text-pink">AI 潤飾結果：</label>
+                <div class="polished-result-text" id="polished-output"></div>
+                <button class="btn-primary" id="btn-insert-text" style="width: 100%;"><i class="fa-solid fa-paste"></i> 填回網頁輸入框</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- 粒子撒紙花 Canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <script src="sidebar.js"></script>
+</body>
+</html>

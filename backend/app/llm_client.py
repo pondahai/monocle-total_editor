@@ -60,39 +60,65 @@ class AIClient:
     @staticmethod
     async def generate(prompt: str, system_prompt: Optional[str] = None) -> str:
         """
-        呼叫本地 LLM (如 Ollama) 生成文本。
+        呼叫本地 LLM (如 Ollama 或 OpenAI 相容伺服器) 生成文本。
         """
-        # 建立完整的 system + user 提示詞
         model_name = settings.LLM_MODEL
+        url = settings.LLM_API_URL.strip()
         
+        # 動態常規化 API 端點
+        if "/v1/models" in url:
+            openai_url = url.replace("/v1/models", "/v1/chat/completions")
+            base_url = url.replace("/v1/models", "").rstrip("/")
+            ollama_url = f"{base_url}/api/generate"
+        elif "/v1" in url:
+            openai_url = f"{url.rstrip('/')}/chat/completions"
+            base_url = url.split("/v1")[0].rstrip("/")
+            ollama_url = f"{base_url}/api/generate"
+        else:
+            ollama_url = f"{url.rstrip('/')}/api/generate"
+            openai_url = f"{url.rstrip('/')}/v1/chat/completions"
+            
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                # 嘗試以 Ollama /api/generate 格式發送
-                ollama_url = f"{settings.LLM_API_URL}/api/generate"
-                payload = {
-                    "model": model_name,
-                    "prompt": prompt,
-                    "system": system_prompt or "你是一個專業的寫作助手。",
-                    "stream": False
-                }
+                # 1. 優先嘗試以 OpenAI 相容格式發送 (因為設定了 /v1/models 這類 OpenAI 格式)
+                if "/v1" in url or "/v1/models" in url:
+                    openai_payload = {
+                        "model": model_name,
+                        "messages": [
+                            {"role": "system", "content": system_prompt or "你是一個專業的寫作助手。"},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": 0.7
+                    }
+                    response = await client.post(openai_url, json=openai_payload)
+                    if response.status_code == 200:
+                        return response.json()["choices"][0]["message"]["content"].strip()
                 
-                response = await client.post(ollama_url, json=payload)
-                if response.status_code == 200:
-                    return response.json().get("response", "").strip()
-                
-                # 嘗試以 OpenAI 相容格式發送 (/v1/chat/completions)
-                openai_url = f"{settings.LLM_API_URL}/v1/chat/completions"
-                openai_payload = {
-                    "model": model_name,
-                    "messages": [
-                        {"role": "system", "content": system_prompt or "你是一個專業的寫作助手。"},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": 0.7
-                }
-                response = await client.post(openai_url, json=openai_payload)
-                if response.status_code == 200:
-                    return response.json()["choices"][0]["message"]["content"].strip()
+                # 2. 備用或預設嘗試 Ollama API 格式
+                if ollama_url:
+                    payload = {
+                        "model": model_name,
+                        "prompt": prompt,
+                        "system": system_prompt or "你是一個專業的寫作助手。",
+                        "stream": False
+                    }
+                    response = await client.post(ollama_url, json=payload)
+                    if response.status_code == 200:
+                        return response.json().get("response", "").strip()
+                        
+                # 3. 如果前面的條件沒滿足或失敗，嘗試用另一種格式作為 fallback
+                if "/v1" not in url and "/v1/models" not in url:
+                    openai_payload = {
+                        "model": model_name,
+                        "messages": [
+                            {"role": "system", "content": system_prompt or "你是一個專業的寫作助手。"},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": 0.7
+                    }
+                    response = await client.post(openai_url, json=openai_payload)
+                    if response.status_code == 200:
+                        return response.json()["choices"][0]["message"]["content"].strip()
                     
             raise Exception(f"LLM server returned status {response.status_code}")
             

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+
+# Local database and physical vector namespace data
+# (Ensure user draft contents, reference materials, and vector files stay local and private!)
+data/
+*.db
+*.npz
+metadata.json
+
+# IDE and System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

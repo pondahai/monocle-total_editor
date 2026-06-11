@@ -1,5 +1,4 @@
 import os
-from pydantic_settings import BaseSettings if False else object # Allow fallback if pydantic-settings not installed
 
 class Settings:
     # API Settings

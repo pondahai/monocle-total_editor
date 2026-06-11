@@ -89,13 +89,26 @@ python run_backend.py
 
 伺服器啟動後會運行在 `http://localhost:8000`。
 
-### 4. 開啟 API 文件進行測試
+### 4. 體驗 Web Dashboard 寫作工作區
 
-打開瀏覽器前往 [http://localhost:8000/docs](http://localhost:8000/docs) 以開啟 Swagger UI，您可以直接在網頁上調用各個 API 進行測試：
-- 建立專案與大綱章節
-- 匯入參考材料 (自動生成 Chunk 與 Embedding，並物理隔離儲存)
-- 切碎大綱成微任務，並進行每日聚焦排程
-- 模擬寫作草稿暫存與套用文風進行 AI 潤飾
+伺服器運行後，直接打開瀏覽器前往：
+👉 **[http://localhost:8000/](http://localhost:8000/)**
+
+您會看到一個整合了專案管理、大綱切碎、今日排程、背景知識庫以及富含 Web Audio 多巴胺完成音效與 Canvas 紙花物理效果的**太空黑玻璃擬態（Glassmorphism）主控台**！
+
+### 5. 安裝 Chrome Extension (Micro 隨身教練側邊欄)
+
+為了在任何寫作網站（如 Notion, Google Docs, Medium）旁掛載隨身側邊欄：
+
+1. 開啟 Chrome 瀏覽器，前往 `chrome://extensions/`。
+2. 開啟右上角的 **「開發者模式 (Developer mode)」** 開關。
+3. 點擊左上角的 **「載入未封裝項目 (Load unpacked)」** 按鈕。
+4. 選擇本專案目錄中的 `frontend/extension` 資料夾。
+5. 成功載入後，在瀏覽器右上角釘選 **Monocle Companion** 圖示。
+6. 點擊該圖示，側邊欄（Side Panel）會立即滑出。它會與本地後端自動同步，讓您在寫作時隨時享有一鍵抓取草稿、AI 潤飾、RAG 材料撈取與微步驟計時功能！
+
+*(API 的 Swagger 技術文件仍可於 [http://localhost:8000/docs](http://localhost:8000/docs) 存取)*
+
 
 ---
 

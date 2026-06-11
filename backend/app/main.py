@@ -290,16 +290,24 @@ async def polish_draft(req: DraftPolish):
         raise HTTPException(status_code=500, detail=str(e))
 
 import os
-# 開機時的基本資訊
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+# 取得目前專案根目錄中的 frontend 資料夾
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend")
+
+# 開機首頁直接載入並顯示 Dashboard 網頁介面
 @app.get("/")
 def read_root():
+    dashboard_path = os.path.join(FRONTEND_DIR, "dashboard.html")
+    if os.path.exists(dashboard_path):
+        return FileResponse(dashboard_path)
     return {
         "status": "online",
         "system": "Total Editor & Portfolio Manager Backend",
-        "endpoints": {
-            "state": "/api/state",
-            "projects": "/api/projects",
-            "tasks_daily": "/api/tasks/daily",
-            "docs": "/docs"
-        }
+        "message": "Frontend dashboard.html not found, please check directories."
     }
+
+# 掛載靜態檔案目錄，處理 css/js 載入 (放在最底下以防阻擋 API 路由)
+app.mount("/", StaticFiles(directory=FRONTEND_DIR), name="frontend")
+

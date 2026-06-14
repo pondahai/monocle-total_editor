@@ -1182,7 +1182,7 @@ async function loadLlmConfig() {
 
 function updateHeaderLlm() {
     const el = document.getElementById("header-llm-model");
-    if (el) el.innerText = llmState.active.model || "未設定";
+    if (el) el.innerText = (llmState.active.model || "未設定") + (llmState.active.skip_thinking ? " ⚡" : "");
 }
 
 function openLlmModal() {
@@ -1209,6 +1209,8 @@ function openLlmModal() {
     document.getElementById("llm-api-url").value = llmState.active.api_url || "";
     document.getElementById("llm-model-manual").value = matched ? "" : (llmState.active.model || "");
     document.getElementById("llm-model-select").innerHTML = `<option value="${llmState.active.model || ''}">${llmState.active.model || '請先載入模型清單...'}</option>`;
+
+    document.getElementById("llm-skip-thinking").checked = !!llmState.active.skip_thinking;
 
     applyPresetEditableState(presetSelect.value);
     document.getElementById("llm-config-modal").classList.remove("hidden");
@@ -1278,6 +1280,7 @@ async function applyLlmConfig() {
     // 手動輸入優先，否則用下拉選的模型
     const manual = document.getElementById("llm-model-manual").value.trim();
     const model = manual || document.getElementById("llm-model-select").value;
+    const skipThinking = document.getElementById("llm-skip-thinking").checked;
 
     if (!apiUrl || !model) {
         alert("請填入 API 端點並選擇/輸入模型！");
@@ -1288,13 +1291,13 @@ async function applyLlmConfig() {
         const res = await fetch(`${API_BASE}/llm/config`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ api_url: apiUrl, model: model })
+            body: JSON.stringify({ api_url: apiUrl, model: model, skip_thinking: skipThinking })
         });
         if (res.ok) {
             llmState.active = await res.json();
             updateHeaderLlm();
             closeLlmModal();
-            showToast(`AI 引擎已切換為：${model}`);
+            showToast(`AI 引擎已切換為：${model}${skipThinking ? "（跳過思考）" : ""}`);
         }
     } catch (e) {
         console.error("套用 LLM 設定失敗:", e);

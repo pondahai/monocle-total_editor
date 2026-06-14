@@ -89,7 +89,7 @@ def get_llm_config():
 @app.post("/api/llm/config", summary="設定當前使用的 LLM 端點與模型")
 def update_llm_config(cfg: LLMConfigUpdate):
     try:
-        return state_manager.set_llm_config(cfg.api_url, cfg.model)
+        return state_manager.set_llm_config(cfg.api_url, cfg.model, cfg.skip_thinking)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

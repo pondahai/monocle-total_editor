@@ -382,6 +382,13 @@
                     </div>
                     <input type="text" id="llm-model-manual" class="styled-input" placeholder="或手動輸入模型名稱..." style="margin-top:8px;">
                 </div>
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" id="llm-skip-thinking" style="width:auto;">
+                        <span>跳過思考模式（Reasoning）— 直接輸出最終答案，加快回應</span>
+                    </label>
+                    <p class="helper-text" style="margin-top:4px;">適用於 Gemma 等預設啟用思考鏈的模型；勾選時注入 <code>thinking_budget_tokens: 0</code>。</p>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" id="btn-cancel-llm">取消</button>

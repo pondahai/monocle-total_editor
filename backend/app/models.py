@@ -57,3 +57,4 @@ class TimerControl(BaseModel):
 class LLMConfigUpdate(BaseModel):
     api_url: str = Field(..., description="OpenAI 相容 LLM 端點，例如 http://192.168.0.17:8080/v1")
     model: str = Field(..., description="模型名稱")
+    skip_thinking: bool = Field(False, description="True 時注入 thinking_budget_tokens=0 跳過思考鏈")

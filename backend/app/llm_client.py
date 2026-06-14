@@ -92,6 +92,10 @@ class AIClient:
         model_name = cfg["model"]
         url = cfg["api_url"].strip()
 
+        # 「跳過思考」：Gemma/llama.cpp 以 thinking_budget_tokens=0 強制跳過思考鏈，
+        # 直接輸出最終答案。關閉時不帶此欄位 (維持模型預設的思考行為)。
+        extra_payload = {"thinking_budget_tokens": 0} if cfg.get("skip_thinking") else {}
+
         # 動態常規化 API 端點
         openai_url, ollama_url, base_url, models_url = _normalize_llm_urls(url)
 
@@ -105,7 +109,8 @@ class AIClient:
                             {"role": "system", "content": system_prompt or "你是一個專業的寫作助手。"},
                             {"role": "user", "content": prompt}
                         ],
-                        "temperature": 0.7
+                        "temperature": 0.7,
+                        **extra_payload
                     }
                     response = await client.post(openai_url, json=openai_payload)
                     
@@ -146,7 +151,8 @@ class AIClient:
                             {"role": "system", "content": system_prompt or "你是一個專業的寫作助手。"},
                             {"role": "user", "content": prompt}
                         ],
-                        "temperature": 0.7
+                        "temperature": 0.7,
+                        **extra_payload
                     }
                     response = await client.post(openai_url, json=openai_payload)
                     if response.status_code == 200:

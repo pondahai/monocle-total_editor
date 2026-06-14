@@ -68,14 +68,26 @@ class StateManager:
         """
         cfg = self.get_value("llm_config")
         if cfg and cfg.get("api_url") and cfg.get("model"):
-            return {"api_url": cfg["api_url"], "model": cfg["model"]}
-        return {"api_url": settings.LLM_API_URL, "model": settings.LLM_MODEL}
+            return {
+                "api_url": cfg["api_url"],
+                "model": cfg["model"],
+                "skip_thinking": bool(cfg.get("skip_thinking", False)),
+            }
+        return {
+            "api_url": settings.LLM_API_URL,
+            "model": settings.LLM_MODEL,
+            "skip_thinking": False,
+        }
 
-    def set_llm_config(self, api_url: str, model: str) -> Dict[str, str]:
+    def set_llm_config(self, api_url: str, model: str, skip_thinking: bool = False) -> Dict[str, Any]:
         """
-        設定並持久化使用者選定的 LLM 端點與模型 (存入 global_state)。
+        設定並持久化使用者選定的 LLM 端點、模型與「跳過思考」開關 (存入 global_state)。
         """
-        cfg = {"api_url": api_url.strip(), "model": model.strip()}
+        cfg = {
+            "api_url": api_url.strip(),
+            "model": model.strip(),
+            "skip_thinking": bool(skip_thinking),
+        }
         self.set_value("llm_config", cfg)
         return cfg
 

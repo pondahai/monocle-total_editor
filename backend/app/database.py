@@ -12,6 +12,9 @@ class Database:
     def get_connection(self):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row  # Returns dict-like rows
+        # SQLite 預設關閉外鍵約束，必須每次連線開啟，
+        # 否則 ON DELETE CASCADE / SET NULL 不會生效，刪除專案會留下孤兒列。
+        conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
     def init_db(self):

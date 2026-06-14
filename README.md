@@ -107,6 +107,8 @@ python run_backend.py
 5. 成功載入後，在瀏覽器右上角釘選 **Monocle Companion** 圖示。
 6. 點擊該圖示，側邊欄（Side Panel）會立即滑出。它會與本地後端自動同步，讓您在寫作時隨時享有一鍵抓取草稿、AI 潤飾、RAG 材料撈取與微步驟計時功能！
 
+> **⚠️ 注意**：擴充功能透過 content script 與網頁互動（抓取選取文字 / 填回潤飾結果）。載入或更新擴充功能後，**已經開啟的分頁需要重新整理 (F5)** 一次，content script 才會注入生效；之後新開的分頁則會自動注入。
+
 *(API 的 Swagger 技術文件仍可於 [http://localhost:8000/docs](http://localhost:8000/docs) 存取)*
 
 

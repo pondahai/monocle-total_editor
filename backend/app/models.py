@@ -13,6 +13,11 @@ class OutlineNodeCreate(BaseModel):
     description: Optional[str] = None
     sort_order: int = 0
 
+class OutlineNodeUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    sort_order: Optional[int] = None
+
 class TaskCreate(BaseModel):
     project_id: str
     outline_node_id: Optional[str] = None
@@ -48,3 +53,7 @@ class DecomposeOutlineRequest(BaseModel):
 class TimerControl(BaseModel):
     action: str = Field(..., description="start, pause, reset")
     duration_seconds: Optional[int] = 1200
+
+class LLMConfigUpdate(BaseModel):
+    api_url: str = Field(..., description="OpenAI 相容 LLM 端點，例如 http://192.168.0.17:8080/v1")
+    model: str = Field(..., description="模型名稱")

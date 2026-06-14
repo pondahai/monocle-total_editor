@@ -97,6 +97,34 @@ class ProjectVectorStore:
                 
         self._save()
 
+    def delete_chunks_by_prefix(self, chunk_id_prefix: str):
+        """
+        依 chunk_id 前綴精準刪除某一筆材料的所有 Vector 與 Metadata。
+        相較 delete_chunks_by_filename，可避免同檔名多材料時誤刪。
+        """
+        if not self.metadata:
+            return
+
+        keep_indices = []
+        new_metadata = []
+
+        for idx, meta in enumerate(self.metadata):
+            if not str(meta.get("chunk_id", "")).startswith(chunk_id_prefix):
+                keep_indices.append(idx)
+                new_metadata.append(meta)
+
+        if len(keep_indices) == len(self.metadata):
+            return  # 沒有需要刪除的
+
+        self.metadata = new_metadata
+        if self.embeddings is not None:
+            if keep_indices:
+                self.embeddings = self.embeddings[keep_indices]
+            else:
+                self.embeddings = None
+
+        self._save()
+
     def similarity_search(self, query_vector: List[float], outline_node_id: Optional[str] = None, top_k: int = 3) -> List[Dict[str, Any]]:
         """
         在專案 Namespace 內進行餘弦相似度檢索。

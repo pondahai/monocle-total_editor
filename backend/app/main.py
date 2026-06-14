@@ -8,14 +8,15 @@ from backend.app.config import settings
 from backend.app.database import db
 from backend.app.state import state_manager
 from backend.app.models import (
-    ProjectCreate, OutlineNodeCreate, TaskCreate, 
-    MaterialIngest, StateUpdate, DraftSave, 
-    DraftPolish, DecomposeOutlineRequest, TimerControl
+    ProjectCreate, OutlineNodeCreate, OutlineNodeUpdate, TaskCreate,
+    MaterialIngest, StateUpdate, DraftSave,
+    DraftPolish, DecomposeOutlineRequest, TimerControl, LLMConfigUpdate
 )
 from backend.app.services.scheduler import TaskSchedulerService
 from backend.app.services.resource import ResourceManagerService
 from backend.app.services.editor import EditorService
 from backend.app.vector_store import vector_store_manager
+from backend.app.llm_client import AIClient
 
 app = FastAPI(
     title="Total Editor & Portfolio Manager Backend",
@@ -71,6 +72,31 @@ def control_timer(control: TimerControl):
         else:
             raise HTTPException(status_code=400, detail="不支援的 action 控制動作，僅接受 start, pause, reset")
         return state_manager.get_full_state()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==========================================
+# 1b. LLM 引擎選擇 (使用者可選端點/模型)
+# ==========================================
+
+@app.get("/api/llm/config", summary="取得 LLM 預設清單與當前 active 設定")
+def get_llm_config():
+    return {
+        "presets": settings.LLM_PRESETS,
+        "active": state_manager.get_llm_config()
+    }
+
+@app.post("/api/llm/config", summary="設定當前使用的 LLM 端點與模型")
+def update_llm_config(cfg: LLMConfigUpdate):
+    try:
+        return state_manager.set_llm_config(cfg.api_url, cfg.model)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/llm/models", summary="向指定端點抓取可用模型清單")
+async def list_llm_models(api_url: str):
+    try:
+        return {"models": await AIClient.list_models(api_url)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -167,6 +193,54 @@ def create_outline_node(node: OutlineNodeCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.patch("/api/outlines/{node_id}", summary="更新大綱節點 (標題、描述、排序)")
+def update_outline_node(node_id: str, update: OutlineNodeUpdate):
+    node = db.query_one("SELECT id FROM outline_nodes WHERE id = ?", (node_id,))
+    if not node:
+        raise HTTPException(status_code=404, detail="大綱節點不存在")
+
+    # 僅更新有提供的欄位 (部分更新)
+    fields = []
+    params: List[Any] = []
+    if update.title is not None:
+        fields.append("title = ?")
+        params.append(update.title)
+    if update.description is not None:
+        fields.append("description = ?")
+        params.append(update.description)
+    if update.sort_order is not None:
+        fields.append("sort_order = ?")
+        params.append(update.sort_order)
+
+    if not fields:
+        raise HTTPException(status_code=400, detail="未提供任何要更新的欄位")
+
+    try:
+        params.append(node_id)
+        db.execute(f"UPDATE outline_nodes SET {', '.join(fields)} WHERE id = ?", tuple(params))
+        return {"status": "success", "id": node_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/outlines/{node_id}", summary="刪除大綱節點 (關聯任務/材料的錨定會自動解除)")
+def delete_outline_node(node_id: str):
+    node = db.query_one("SELECT id FROM outline_nodes WHERE id = ?", (node_id,))
+    if not node:
+        raise HTTPException(status_code=404, detail="大綱節點不存在")
+
+    try:
+        # FK 開啟後，tasks / materials 的 outline_node_id 會自動 SET NULL
+        db.execute("DELETE FROM outline_nodes WHERE id = ?", (node_id,))
+
+        # 若刪除的是當前活躍大綱，重設狀態機
+        active_oid = state_manager.get_value("active_outline_node_id")
+        if active_oid == node_id:
+            state_manager.set_active_outline_node(None)
+
+        return {"status": "success", "message": f"大綱節點 {node_id} 已刪除。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/outlines/decompose", summary="[工具] 自動將大綱拆解為 20分鐘微任務清單")
 async def decompose_outline(req: DecomposeOutlineRequest):
     try:
@@ -260,6 +334,31 @@ async def retrieve_materials(project_id: str, query: str, outline_node_id: Optio
             query_text=query,
             top_k=top_k
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/materials/{material_id}", summary="取得單筆材料詳情 (含完整正文)")
+def get_material(material_id: str):
+    material = db.query_one("SELECT * FROM materials WHERE id = ?", (material_id,))
+    if not material:
+        raise HTTPException(status_code=404, detail="材料不存在")
+    return material
+
+@app.delete("/api/materials/{material_id}", summary="刪除材料 (並清除其物理隔離向量)")
+def delete_material(material_id: str):
+    material = db.query_one("SELECT id, project_id FROM materials WHERE id = ?", (material_id,))
+    if not material:
+        raise HTTPException(status_code=404, detail="材料不存在")
+
+    try:
+        # 1. 刪除該材料在專案 Namespace 內的向量與 metadata (依 chunk_id 前綴精準刪除)
+        store = vector_store_manager.get_store(material["project_id"])
+        store.delete_chunks_by_prefix(f"{material_id}_chunk_")
+
+        # 2. 刪除 DB 記錄
+        db.execute("DELETE FROM materials WHERE id = ?", (material_id,))
+
+        return {"status": "success", "message": f"材料 {material_id} 及其向量已清除。"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

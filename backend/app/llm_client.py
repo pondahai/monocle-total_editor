@@ -6,6 +6,30 @@ from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_llm_urls(url: str):
+    """
+    將使用者設定的 API 端點正規化，推導出 OpenAI 相容、Ollama 與 /v1/models 三種 URL。
+    供 generate() 與 list_models() 共用。
+    """
+    url = url.strip()
+    if "/v1/models" in url:
+        openai_url = url.replace("/v1/models", "/v1/chat/completions")
+        base_url = url.replace("/v1/models", "").rstrip("/")
+        ollama_url = f"{base_url}/api/generate"
+        models_url = f"{base_url}/v1/models"
+    elif "/v1" in url:
+        openai_url = f"{url.rstrip('/')}/chat/completions"
+        base_url = url.split("/v1")[0].rstrip("/")
+        ollama_url = f"{base_url}/api/generate"
+        models_url = f"{base_url}/v1/models"
+    else:
+        base_url = url.rstrip("/")
+        ollama_url = f"{base_url}/api/generate"
+        openai_url = f"{base_url}/v1/chat/completions"
+        models_url = f"{base_url}/v1/models"
+    return openai_url, ollama_url, base_url, models_url
+
 class AIClient:
     """
     負責與本地 LLM (如 Ollama) 及 Embedding 伺服器 (Port 8002 BGE-M3) 對接。
@@ -62,22 +86,15 @@ class AIClient:
         """
         呼叫本地 LLM (如 Ollama 或 OpenAI 相容伺服器) 生成文本。
         """
-        model_name = settings.LLM_MODEL
-        url = settings.LLM_API_URL.strip()
-        
+        # 讀取使用者於前端選定的 active LLM 設定 (端點/模型)，lazy import 避免循環依賴
+        from backend.app.state import state_manager
+        cfg = state_manager.get_llm_config()
+        model_name = cfg["model"]
+        url = cfg["api_url"].strip()
+
         # 動態常規化 API 端點
-        if "/v1/models" in url:
-            openai_url = url.replace("/v1/models", "/v1/chat/completions")
-            base_url = url.replace("/v1/models", "").rstrip("/")
-            ollama_url = f"{base_url}/api/generate"
-        elif "/v1" in url:
-            openai_url = f"{url.rstrip('/')}/chat/completions"
-            base_url = url.split("/v1")[0].rstrip("/")
-            ollama_url = f"{base_url}/api/generate"
-        else:
-            ollama_url = f"{url.rstrip('/')}/api/generate"
-            openai_url = f"{url.rstrip('/')}/v1/chat/completions"
-            
+        openai_url, ollama_url, base_url, models_url = _normalize_llm_urls(url)
+
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 # 1. 優先嘗試以 OpenAI 相容格式發送 (因為設定了 /v1/models 這類 OpenAI 格式)
@@ -95,8 +112,6 @@ class AIClient:
                     # 智慧自我修正：若回傳 404 (或 400) 代表模型名稱不合，自動從 /v1/models 動態選取第一個可用模型重新請求
                     if response.status_code in (404, 400):
                         try:
-                            models_url = url if url.endswith("/v1") else f"{base_url}/v1"
-                            models_url = f"{models_url.rstrip('/')}/models"
                             models_res = await client.get(models_url)
                             if models_res.status_code == 200:
                                 models_data = models_res.json()
@@ -143,5 +158,27 @@ class AIClient:
             logger.warning(f"無法連線至 LLM 伺服器 ({settings.LLM_API_URL}): {str(e)}。啟用 Mock 文本產出。")
             # 降級機制：回傳模擬的 AI 處理結果
             return f"【本地 LLM 離線模擬回覆】\n收到提示詞：「{prompt[:60]}...」\n本系統正在模擬離線狀態下的處理。如果您已啟動 Ollama 或其他 LLM，請檢查 API 端點是否為 {settings.LLM_API_URL}。\n\n[模擬潤飾文字]\n您輸入的草稿已經過 Mock 模組改寫，文風設定：{system_prompt or '預設寫作風格'}"
+
+    @staticmethod
+    async def list_models(api_url: str) -> List[str]:
+        """
+        向指定 OpenAI 相容伺服器的 /v1/models 抓取可用模型清單。
+        best-effort：抓不到 (例如純 Ollama 無 /v1) 回傳空清單，由前端手動輸入兜底。
+        """
+        _, _, _, models_url = _normalize_llm_urls(api_url)
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(models_url)
+                if res.status_code == 200:
+                    data = res.json()
+                    if isinstance(data.get("data"), list):
+                        return [m["id"] for m in data["data"] if "id" in m]
+                    if isinstance(data.get("models"), list):
+                        # 相容 {"models":[{"name":...}]} 這類格式 (llama.cpp/Ollama)
+                        return [m.get("id") or m.get("name") for m in data["models"] if (m.get("id") or m.get("name"))]
+        except Exception as e:
+            logger.warning(f"無法取得模型清單 ({models_url}): {str(e)}")
+        return []
+
 
 ai_client = AIClient()

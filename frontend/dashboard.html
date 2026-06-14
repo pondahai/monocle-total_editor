@@ -70,6 +70,9 @@
                     <select id="global-project-select" class="styled-select">
                         <option value="">請選擇專案...</option>
                     </select>
+                    <button class="btn-secondary btn-sm" id="btn-open-llm-modal" title="選擇 AI 引擎" style="margin-left:12px;">
+                        <i class="fa-solid fa-microchip text-cyan"></i> AI 引擎：<span id="header-llm-model">載入中...</span>
+                    </button>
                 </div>
 
                 <!-- ADHD 視覺計時器 -->
@@ -116,6 +119,7 @@
                                     <h2 id="editor-current-chapter-title">請選擇章節開始寫作</h2>
                                 </div>
                                 <div class="editor-actions">
+                                    <button class="btn-secondary" id="btn-workspace-decompose"><i class="fa-solid fa-scissors"></i> AI 拆解微任務</button>
                                     <button class="btn-secondary" id="btn-save-draft"><i class="fa-solid fa-floppy-disk"></i> 暫存草稿</button>
                                     <button class="btn-primary" id="btn-polish-draft"><i class="fa-solid fa-wand-magic-sparkles"></i> 一鍵潤飾 (AI)</button>
                                 </div>
@@ -204,6 +208,7 @@
                                             <input type="text" id="outline-title" placeholder="章節名稱..." required>
                                             <input type="number" id="outline-order" placeholder="順序" value="0" style="width: 70px;">
                                             <button type="submit" class="btn-primary">新增章節</button>
+                                            <textarea id="outline-desc" placeholder="章節描述 / 想涵蓋的情節 (選填，供 AI 拆解微任務時參考)..." style="width: 100%; margin-top: 8px;"></textarea>
                                         </form>
                                     </div>
                                     <div class="outline-table-container">
@@ -344,6 +349,60 @@
             <div class="modal-footer">
                 <button class="btn-secondary" id="btn-cancel-decompose">取消</button>
                 <button class="btn-primary" id="btn-execute-decompose"><i class="fa-solid fa-scissors"></i> 開始切碎大綱</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6.彈出視窗 (Modal)：選擇 AI 引擎 (LLM 端點/模型) -->
+    <div class="modal-backdrop hidden" id="llm-config-modal">
+        <div class="modal-container glass-card">
+            <div class="modal-header">
+                <h2>選擇 AI 引擎</h2>
+                <button class="modal-close-btn" id="btn-close-llm-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="helper-text">選擇後端 LLM 服務端點與模型。設定為全域共享，Web 主控台與 Chrome 側邊欄都會套用。</p>
+                <div class="form-group">
+                    <label for="llm-preset-select">服務預設</label>
+                    <select id="llm-preset-select" class="styled-select">
+                        <!-- 預設選項由 JS 動態載入，最後附加「自訂」 -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="llm-api-url">API 端點 (OpenAI 相容)</label>
+                    <input type="text" id="llm-api-url" class="styled-input" placeholder="http://host:port/v1">
+                </div>
+                <div class="form-group">
+                    <label for="llm-model-select">模型</label>
+                    <div class="inline-fields" style="display:flex; gap:8px;">
+                        <select id="llm-model-select" class="styled-select" style="flex:1;">
+                            <option value="">請先載入模型清單...</option>
+                        </select>
+                        <button class="btn-secondary" id="btn-load-llm-models" type="button"><i class="fa-solid fa-arrows-rotate"></i> 載入模型</button>
+                    </div>
+                    <input type="text" id="llm-model-manual" class="styled-input" placeholder="或手動輸入模型名稱..." style="margin-top:8px;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btn-cancel-llm">取消</button>
+                <button class="btn-primary" id="btn-apply-llm"><i class="fa-solid fa-check"></i> 套用</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5.彈出視窗 (Modal)：檢視材料正文 -->
+    <div class="modal-backdrop hidden" id="material-view-modal">
+        <div class="modal-container glass-card">
+            <div class="modal-header">
+                <h2 id="material-view-title">材料正文</h2>
+                <button class="modal-close-btn" id="btn-close-material-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="helper-text" id="material-view-meta"></p>
+                <div class="result-text" id="material-view-content" style="max-height: 50vh; overflow-y: auto; white-space: pre-wrap;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btn-close-material-modal-2">關閉</button>
             </div>
         </div>
     </div>

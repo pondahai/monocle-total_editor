@@ -19,6 +19,9 @@ let state = {
     dailyTasks: []
 };
 
+// LLM 引擎設定 (預設清單 + 當前 active)
+let llmState = { presets: [], active: { api_url: "", model: "" } };
+
 // Web Audio API Context for Chime Synthesis
 let audioCtx = null;
 
@@ -38,12 +41,20 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initApp() {
     // 載入專案選單
     await refreshProjects();
-    
+
+    // 載入 LLM 引擎設定 (header 顯示當前模型 + modal 預設)
+    await loadLlmConfig();
+
     // 初始化同步全域狀態
     await syncStateWithBackend();
-    
-    // 預設切換至 Workspace 標籤頁
-    switchTab("workspace");
+
+    // 新手動線：沒有活躍專案時，直接落在「專案管理」引導建立/選擇，
+    // 而非停在空白的寫作工作區撞牆。
+    if (state.activeProjectId) {
+        switchTab("workspace");
+    } else {
+        switchTab("projects");
+    }
 }
 
 function setupEventListeners() {
@@ -81,11 +92,24 @@ function setupEventListeners() {
     // 專案管理 - 新增章節大綱
     document.getElementById("form-add-outline").addEventListener("submit", handleAddOutline);
 
-    // 大綱拆解 Modal 開關
+    // 大綱拆解 Modal 開關 (專案管理 + 寫作區皆有入口)
     document.getElementById("btn-open-decompose-modal").addEventListener("click", openDecomposeModal);
+    document.getElementById("btn-workspace-decompose").addEventListener("click", openDecomposeModal);
     document.getElementById("btn-close-decompose-modal").addEventListener("click", closeDecomposeModal);
     document.getElementById("btn-cancel-decompose").addEventListener("click", closeDecomposeModal);
     document.getElementById("btn-execute-decompose").addEventListener("click", handleDecomposeOutline);
+
+    // 材料檢視 Modal 關閉
+    document.getElementById("btn-close-material-modal").addEventListener("click", closeMaterialModal);
+    document.getElementById("btn-close-material-modal-2").addEventListener("click", closeMaterialModal);
+
+    // AI 引擎 (LLM) 設定 Modal
+    document.getElementById("btn-open-llm-modal").addEventListener("click", openLlmModal);
+    document.getElementById("btn-close-llm-modal").addEventListener("click", closeLlmModal);
+    document.getElementById("btn-cancel-llm").addEventListener("click", closeLlmModal);
+    document.getElementById("llm-preset-select").addEventListener("change", onLlmPresetChange);
+    document.getElementById("btn-load-llm-models").addEventListener("click", loadLlmModels);
+    document.getElementById("btn-apply-llm").addEventListener("click", applyLlmConfig);
 
     // 今日聚焦排程 - 重新整理
     document.getElementById("btn-refresh-schedule").addEventListener("click", refreshDailySchedule);
@@ -364,7 +388,7 @@ function renderProjectList() {
     grid.innerHTML = "";
     
     if (state.projects.length === 0) {
-        grid.innerHTML = '<div class="empty-state">尚無任何寫作專案，請在左側表單建立。</div>';
+        grid.innerHTML = '<div class="empty-state">尚無任何寫作專案<br><button class="btn-primary btn-sm" onclick="document.getElementById(\'proj-name\').focus()" style="margin-top:12px;"><i class="fa-solid fa-plus"></i> 建立第一個專案</button></div>';
         return;
     }
 
@@ -458,6 +482,7 @@ async function handleAddOutline(e) {
     
     const title = document.getElementById("outline-title").value;
     const sort_order = parseInt(document.getElementById("outline-order").value) || 0;
+    const description = document.getElementById("outline-desc").value || null;
 
     try {
         const res = await fetch(`${API_BASE}/outlines`, {
@@ -466,6 +491,7 @@ async function handleAddOutline(e) {
             body: JSON.stringify({
                 project_id: state.activeProjectId,
                 title: title,
+                description: description,
                 sort_order: sort_order
             })
         });
@@ -497,9 +523,11 @@ function renderProjectOutlinesTable() {
             <td>${new Date(o.created_at).toLocaleDateString()}</td>
             <td>
                 <button class="btn-sm btn-secondary btn-set-active" data-id="${o.id}"><i class="fa-solid fa-feather-pointed"></i> 寫作</button>
+                <button class="btn-sm btn-secondary btn-edit-outline" data-id="${o.id}" title="編輯章節"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn-sm btn-secondary btn-delete-outline" data-id="${o.id}" title="刪除章節"><i class="fa-solid fa-trash-can"></i></button>
             </td>
         `;
-        
+
         tr.querySelector(".btn-set-active").addEventListener("click", async () => {
             try {
                 const res = await fetch(`${API_BASE}/state`, {
@@ -514,9 +542,50 @@ function renderProjectOutlinesTable() {
                 console.error("選取章節失敗:", err);
             }
         });
-        
+
+        tr.querySelector(".btn-edit-outline").addEventListener("click", () => editOutlineNode(o));
+        tr.querySelector(".btn-delete-outline").addEventListener("click", () => deleteOutlineNode(o));
+
         tbody.appendChild(tr);
     });
+}
+
+async function editOutlineNode(node) {
+    const newTitle = prompt("章節標題：", node.title);
+    if (newTitle === null) return; // 使用者取消
+    const newDesc = prompt("章節描述（供 AI 拆解微任務參考，可留空）：", node.description || "");
+    if (newDesc === null) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/outlines/${node.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: newTitle, description: newDesc })
+        });
+        if (res.ok) {
+            await refreshProjectDetails(state.activeProjectId);
+            renderProjectOutlinesTable();
+            showToast("章節已更新");
+        }
+    } catch (err) {
+        console.error("更新章節失敗:", err);
+    }
+}
+
+async function deleteOutlineNode(node) {
+    if (!confirm(`確定要刪除章節「${node.title}」嗎？該章節的草稿內容會一併移除，關聯任務與材料的錨定將自動解除。`)) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/outlines/${node.id}`, { method: "DELETE" });
+        if (res.ok) {
+            await refreshProjectDetails(state.activeProjectId);
+            renderProjectOutlinesTable();
+            showToast("章節已刪除");
+        }
+    } catch (err) {
+        console.error("刪除章節失敗:", err);
+    }
 }
 
 // 渲染 Workspace 左側章節目錄
@@ -525,12 +594,12 @@ function renderWorkspaceOutlines() {
     list.innerHTML = "";
     
     if (!state.activeProjectId) {
-        list.innerHTML = '<div class="empty-state">請先至「專案管理」<br>建立或選定專案</div>';
+        list.innerHTML = '<div class="empty-state">尚未選定專案<br><button class="btn-primary btn-sm" onclick="switchTab(\'projects\')" style="margin-top:12px;"><i class="fa-solid fa-folder-tree"></i> 前往專案管理</button></div>';
         return;
     }
-    
+
     if (state.outlines.length === 0) {
-        list.innerHTML = '<div class="empty-state">此專案尚無章節目錄，<br>請至專案管理分頁新增。</div>';
+        list.innerHTML = '<div class="empty-state">此專案尚無章節目錄<br><button class="btn-primary btn-sm" onclick="switchTab(\'projects\')" style="margin-top:12px;"><i class="fa-solid fa-plus"></i> 去新增章節</button></div>';
         return;
     }
 
@@ -706,7 +775,7 @@ async function fetchRAGContextMaterials(text) {
         const data = await res.json();
         
         if (data.length === 0) {
-            container.innerHTML = '<div class="empty-state">此章節尚未錨定任何參考材料。<br>可至背景知識庫新增。</div>';
+            container.innerHTML = '<div class="empty-state">此章節尚未錨定任何參考材料<br><button class="btn-secondary btn-sm" onclick="switchTab(\'materials\')" style="margin-top:12px;"><i class="fa-solid fa-book-bookmark"></i> 去背景知識庫新增</button></div>';
             return;
         }
 
@@ -948,16 +1017,53 @@ async function renderUploadedMaterialsList() {
                 <td>${new Date(m.created_at).toLocaleDateString()}</td>
                 <td>
                     <button class="btn-sm btn-secondary btn-view-content" data-id="${m.id}"><i class="fa-regular fa-eye"></i> 檢視</button>
+                    <button class="btn-sm btn-secondary btn-delete-material" data-id="${m.id}" title="刪除材料"><i class="fa-solid fa-trash-can"></i></button>
                 </td>
             `;
-            
-            tr.querySelector(".btn-view-content").addEventListener("click", () => {
-                alert(`材料正文內容：\n\n(此處預留檢視介面，您可以直接在 SQLite 查看此片段)`);
-            });
-            
+
+            tr.querySelector(".btn-view-content").addEventListener("click", () => viewMaterialContent(m.id, anchorName));
+            tr.querySelector(".btn-delete-material").addEventListener("click", () => deleteMaterial(m.id, m.filename));
+
             tbody.appendChild(tr);
         });
     } catch(e) {}
+}
+
+async function viewMaterialContent(materialId, anchorName) {
+    try {
+        const res = await fetch(`${API_BASE}/materials/${materialId}`);
+        if (!res.ok) {
+            alert("無法取得材料正文。");
+            return;
+        }
+        const m = await res.json();
+        document.getElementById("material-view-title").innerText = m.filename;
+        document.getElementById("material-view-meta").innerText =
+            `錨定章節：${anchorName} ・ 建立時間：${new Date(m.created_at).toLocaleString()}`;
+        document.getElementById("material-view-content").innerText = m.raw_content || "(無正文內容)";
+        document.getElementById("material-view-modal").classList.remove("hidden");
+    } catch (e) {
+        console.error("檢視材料失敗:", e);
+    }
+}
+
+function closeMaterialModal() {
+    document.getElementById("material-view-modal").classList.add("hidden");
+}
+
+async function deleteMaterial(materialId, filename) {
+    if (!confirm(`確定要刪除材料「${filename}」嗎？這會一併清除其在本地隔離向量空間中的所有切片。`)) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/materials/${materialId}`, { method: "DELETE" });
+        if (res.ok) {
+            showToast("材料與其向量已刪除");
+            await renderUploadedMaterialsList();
+        }
+    } catch (e) {
+        console.error("刪除材料失敗:", e);
+    }
 }
 
 async function handleSearchMaterials() {
@@ -1056,6 +1162,142 @@ async function handleDecomposeOutline() {
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-scissors"></i> 開始切碎大綱';
+    }
+}
+
+// ==========================================
+// 10b. AI 引擎 (LLM 端點/模型) 選擇
+// ==========================================
+async function loadLlmConfig() {
+    try {
+        const res = await fetch(`${API_BASE}/llm/config`);
+        const data = await res.json();
+        llmState.presets = data.presets || [];
+        llmState.active = data.active || { api_url: "", model: "" };
+        updateHeaderLlm();
+    } catch (e) {
+        console.error("載入 LLM 設定失敗:", e);
+    }
+}
+
+function updateHeaderLlm() {
+    const el = document.getElementById("header-llm-model");
+    if (el) el.innerText = llmState.active.model || "未設定";
+}
+
+function openLlmModal() {
+    const presetSelect = document.getElementById("llm-preset-select");
+    // 渲染預設清單 + 自訂
+    presetSelect.innerHTML = "";
+    llmState.presets.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.text = p.name;
+        opt.dataset.apiUrl = p.api_url;
+        opt.dataset.model = p.model;
+        presetSelect.appendChild(opt);
+    });
+    const customOpt = document.createElement("option");
+    customOpt.value = "__custom__";
+    customOpt.text = "自訂...";
+    presetSelect.appendChild(customOpt);
+
+    // 依當前 active 選中對應預設 (比對 api_url)；找不到則視為自訂
+    const matched = llmState.presets.find(p => p.api_url === llmState.active.api_url);
+    presetSelect.value = matched ? matched.id : "__custom__";
+
+    document.getElementById("llm-api-url").value = llmState.active.api_url || "";
+    document.getElementById("llm-model-manual").value = matched ? "" : (llmState.active.model || "");
+    document.getElementById("llm-model-select").innerHTML = `<option value="${llmState.active.model || ''}">${llmState.active.model || '請先載入模型清單...'}</option>`;
+
+    applyPresetEditableState(presetSelect.value);
+    document.getElementById("llm-config-modal").classList.remove("hidden");
+}
+
+function closeLlmModal() {
+    document.getElementById("llm-config-modal").classList.add("hidden");
+}
+
+function applyPresetEditableState(presetValue) {
+    const urlInput = document.getElementById("llm-api-url");
+    // 自訂時可編輯網址；選具體預設時唯讀 (帶入預設網址)
+    urlInput.readOnly = (presetValue !== "__custom__");
+}
+
+function onLlmPresetChange(e) {
+    const val = e.target.value;
+    applyPresetEditableState(val);
+    if (val !== "__custom__") {
+        const preset = llmState.presets.find(p => p.id === val);
+        if (preset) {
+            document.getElementById("llm-api-url").value = preset.api_url;
+            document.getElementById("llm-model-manual").value = "";
+            document.getElementById("llm-model-select").innerHTML = `<option value="${preset.model}">${preset.model}</option>`;
+        }
+    }
+}
+
+async function loadLlmModels() {
+    const apiUrl = document.getElementById("llm-api-url").value.trim();
+    if (!apiUrl) {
+        alert("請先填入 API 端點！");
+        return;
+    }
+    const btn = document.getElementById("btn-load-llm-models");
+    const select = document.getElementById("llm-model-select");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 載入中...';
+    try {
+        const res = await fetch(`${API_BASE}/llm/models?api_url=${encodeURIComponent(apiUrl)}`);
+        const data = await res.json();
+        const models = data.models || [];
+        if (models.length === 0) {
+            select.innerHTML = '<option value="">(抓不到模型，請於下方手動輸入)</option>';
+            showToast("該端點未回傳模型清單，請手動輸入模型名稱");
+        } else {
+            select.innerHTML = "";
+            models.forEach(m => {
+                const opt = document.createElement("option");
+                opt.value = m;
+                opt.text = m;
+                select.appendChild(opt);
+            });
+            // 若當前 active 模型在清單內，預選它
+            if (models.includes(llmState.active.model)) select.value = llmState.active.model;
+        }
+    } catch (e) {
+        select.innerHTML = '<option value="">(載入失敗，請手動輸入)</option>';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> 載入模型';
+    }
+}
+
+async function applyLlmConfig() {
+    const apiUrl = document.getElementById("llm-api-url").value.trim();
+    // 手動輸入優先，否則用下拉選的模型
+    const manual = document.getElementById("llm-model-manual").value.trim();
+    const model = manual || document.getElementById("llm-model-select").value;
+
+    if (!apiUrl || !model) {
+        alert("請填入 API 端點並選擇/輸入模型！");
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/llm/config`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ api_url: apiUrl, model: model })
+        });
+        if (res.ok) {
+            llmState.active = await res.json();
+            updateHeaderLlm();
+            closeLlmModal();
+            showToast(`AI 引擎已切換為：${model}`);
+        }
+    } catch (e) {
+        console.error("套用 LLM 設定失敗:", e);
     }
 }
 

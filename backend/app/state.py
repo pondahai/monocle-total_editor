@@ -2,6 +2,7 @@ import json
 import time
 from typing import Dict, Any, Optional
 from backend.app.database import db
+from backend.app.config import settings
 
 class StateManager:
     """
@@ -47,8 +48,9 @@ class StateManager:
                 timer_state["is_running"] = False
                 timer_state["remaining_seconds"] = 0
                 timer_state["started_at"] = None
-                # 時間到時，如果目前有活動任務，可觸發任務狀態變更為待處理或已結束
-                # 這裡僅負責 Timer 本身的狀態流轉
+                # 將歸零後的停止狀態持久化寫回 DB，
+                # 否則下一次讀取仍會看到 is_running=true，計時器永遠卡住。
+                self.set_value("timer_state", timer_state)
             else:
                 timer_state["remaining_seconds"] = new_remaining
                 
@@ -58,6 +60,24 @@ class StateManager:
             "active_task_id": self.get_value("active_task_id"),
             "timer": timer_state
         }
+
+    def get_llm_config(self) -> Dict[str, str]:
+        """
+        取得目前使用者選定的 LLM 端點與模型。
+        若使用者尚未選擇，回退至 config.py 的初始預設值。
+        """
+        cfg = self.get_value("llm_config")
+        if cfg and cfg.get("api_url") and cfg.get("model"):
+            return {"api_url": cfg["api_url"], "model": cfg["model"]}
+        return {"api_url": settings.LLM_API_URL, "model": settings.LLM_MODEL}
+
+    def set_llm_config(self, api_url: str, model: str) -> Dict[str, str]:
+        """
+        設定並持久化使用者選定的 LLM 端點與模型 (存入 global_state)。
+        """
+        cfg = {"api_url": api_url.strip(), "model": model.strip()}
+        self.set_value("llm_config", cfg)
+        return cfg
 
     def set_active_project(self, project_id: Optional[str]):
         """

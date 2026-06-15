@@ -57,3 +57,14 @@ class DraftFuseRequest(BaseModel):
     project_id: str
     outline_node_id: str
     answers: List[AnswerItem]
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    persona_prompt: Optional[str] = None
+    deadline: Optional[str] = None
+
+class OutlineNodeUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    sort_order: Optional[int] = None

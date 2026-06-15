@@ -374,6 +374,66 @@
         </div>
     </div>
 
+    <!-- 5. 彈出視窗 (Modal)：編輯專案詳情與文風 -->
+    <div class="modal-backdrop hidden" id="edit-project-modal">
+        <div class="modal-container glass-card">
+            <div class="modal-header">
+                <h2>編輯專案詳情與文風</h2>
+                <button class="modal-close-btn" id="btn-close-edit-project-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit-proj-name">專案名稱</label>
+                    <input type="text" id="edit-proj-name" class="styled-input" required placeholder="例如：硬核科幻短篇、React 技術說明...">
+                </div>
+                <div class="form-group">
+                    <label for="edit-proj-desc">專案描述</label>
+                    <textarea id="edit-proj-desc" class="styled-input" placeholder="簡單描述這個專案的目標與受眾..." style="height: 80px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-proj-persona">寫作文風 Persona (System Prompt)</label>
+                    <textarea id="edit-proj-persona" class="styled-input" placeholder="例如：你是一位文筆冷靜精煉、注重物理細節的科幻主編。請用硬核且具畫面感的文體進行文字潤飾。" style="height: 120px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-proj-deadline">截止日</label>
+                    <input type="date" id="edit-proj-deadline" class="styled-input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btn-cancel-edit-project">取消</button>
+                <button class="btn-primary" id="btn-save-edit-project"><i class="fa-solid fa-floppy-disk"></i> 保存修改</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. 彈出視窗 (Modal)：編輯大綱章節 -->
+    <div class="modal-backdrop hidden" id="edit-outline-modal">
+        <div class="modal-container glass-card">
+            <div class="modal-header">
+                <h2>編輯大綱章節詳情</h2>
+                <button class="modal-close-btn" id="btn-close-edit-outline-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit-outline-title">章節名稱</label>
+                    <input type="text" id="edit-outline-title" class="styled-input" required placeholder="章節名稱...">
+                </div>
+                <div class="form-group">
+                    <label for="edit-outline-desc">章節情節描述 (AI 引導教練會參考此內容)</label>
+                    <textarea id="edit-outline-desc" class="styled-input" placeholder="簡短描述此章節的大綱或將要發生的主要情節..." style="height: 120px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-outline-order">排序順序</label>
+                    <input type="number" id="edit-outline-order" class="styled-input" required placeholder="排序值 (數字越小越靠前)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btn-cancel-edit-outline">取消</button>
+                <button class="btn-primary" id="btn-save-edit-outline"><i class="fa-solid fa-floppy-disk"></i> 保存修改</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 粒子撒紙花 Canvas -->
     <canvas id="confetti-canvas"></canvas>
 

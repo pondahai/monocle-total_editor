@@ -11,7 +11,7 @@ from backend.app.models import (
     ProjectCreate, OutlineNodeCreate, TaskCreate, 
     MaterialIngest, StateUpdate, DraftSave, 
     DraftPolish, DecomposeOutlineRequest, TimerControl,
-    DraftFuseRequest
+    DraftFuseRequest, ProjectUpdate, OutlineNodeUpdate
 )
 from backend.app.services.scheduler import TaskSchedulerService
 from backend.app.services.resource import ResourceManagerService
@@ -148,6 +148,40 @@ def delete_project(project_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/api/projects/{project_id}", summary="修改專案屬性 (名稱、描述、文風等)")
+def update_project(project_id: str, proj: ProjectUpdate):
+    project = db.query_one("SELECT * FROM projects WHERE id = ?", (project_id,))
+    if not project:
+        raise HTTPException(status_code=404, detail="專案不存在")
+        
+    try:
+        fields = []
+        params = []
+        if proj.name is not None:
+            fields.append("name = ?")
+            params.append(proj.name)
+        if proj.description is not None:
+            fields.append("description = ?")
+            params.append(proj.description)
+        if proj.persona_prompt is not None:
+            fields.append("persona_prompt = ?")
+            params.append(proj.persona_prompt)
+        if proj.deadline is not None:
+            fields.append("deadline = ?")
+            params.append(proj.deadline)
+            
+        if not fields:
+            return {"status": "no-change", "message": "無任何修改欄位"}
+            
+        params.append(project_id)
+        db.execute(
+            f"UPDATE projects SET {', '.join(fields)} WHERE id = ?",
+            tuple(params)
+        )
+        return {"status": "success", "message": "專案更新成功"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ==========================================
 # 3. 大綱結構與切碎工具 (Outline & Chunking)
 # ==========================================
@@ -165,6 +199,37 @@ def create_outline_node(node: OutlineNodeCreate):
             (node_id, node.project_id, node.title, node.description, node.sort_order, created_at)
         )
         return {"id": node_id, "title": node.title, "sort_order": node.sort_order}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/outlines/{outline_id}", summary="修改大綱章節屬性 (標題、描述、順序)")
+def update_outline(outline_id: str, node: OutlineNodeUpdate):
+    outline = db.query_one("SELECT * FROM outline_nodes WHERE id = ?", (outline_id,))
+    if not outline:
+        raise HTTPException(status_code=404, detail="章節不存在")
+        
+    try:
+        fields = []
+        params = []
+        if node.title is not None:
+            fields.append("title = ?")
+            params.append(node.title)
+        if node.description is not None:
+            fields.append("description = ?")
+            params.append(node.description)
+        if node.sort_order is not None:
+            fields.append("sort_order = ?")
+            params.append(node.sort_order)
+            
+        if not fields:
+            return {"status": "no-change", "message": "無任何修改欄位"}
+            
+        params.append(outline_id)
+        db.execute(
+            f"UPDATE outline_nodes SET {', '.join(fields)} WHERE id = ?",
+            tuple(params)
+        )
+        return {"status": "success", "message": "大綱章節更新成功"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

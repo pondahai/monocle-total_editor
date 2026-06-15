@@ -129,6 +129,16 @@ function setupEventListeners() {
     });
     document.getElementById("btn-reload-coach").addEventListener("click", () => loadCoachQuestions(true));
     document.getElementById("btn-fuse-answers").addEventListener("click", fuseCoachAnswers);
+
+    // 專案管理 - 編輯專案 Modal 控制
+    document.getElementById("btn-close-edit-project-modal").addEventListener("click", closeEditProjectModal);
+    document.getElementById("btn-cancel-edit-project").addEventListener("click", closeEditProjectModal);
+    document.getElementById("btn-save-edit-project").addEventListener("click", saveProjectEdits);
+
+    // 專案管理 - 編輯大綱章節 Modal 控制
+    document.getElementById("btn-close-edit-outline-modal").addEventListener("click", closeEditOutlineModal);
+    document.getElementById("btn-cancel-edit-outline").addEventListener("click", closeEditOutlineModal);
+    document.getElementById("btn-save-edit-outline").addEventListener("click", saveOutlineEdits);
 }
 
 // ==========================================
@@ -394,6 +404,7 @@ function renderProjectList() {
         
         card.innerHTML = `
             <div class="project-card-actions">
+                <button class="btn-icon btn-edit-project" data-id="${p.id}" title="編輯專案"><i class="fa-solid fa-pen-to-square"></i></button>
                 <button class="btn-icon btn-delete" data-id="${p.id}" title="刪除專案"><i class="fa-solid fa-trash-can"></i></button>
             </div>
             <h3>${p.name}</h3>
@@ -406,9 +417,15 @@ function renderProjectList() {
         
         // 點擊卡片切換活躍專案
         card.addEventListener("click", (e) => {
-            // 如果點擊到刪除按鈕，不觸發切換
-            if (e.target.closest(".btn-delete")) return;
+            // 如果點擊到刪除或編輯按鈕，不觸發切換
+            if (e.target.closest(".btn-delete") || e.target.closest(".btn-edit-project")) return;
             selectActiveProject(p.id);
+        });
+        
+        // 編輯按鈕事件
+        card.querySelector(".btn-edit-project").addEventListener("click", (e) => {
+            e.stopPropagation();
+            openEditProjectModal(p);
         });
         
         // 刪除按鈕事件
@@ -520,6 +537,7 @@ function renderProjectOutlinesTable() {
             <td>${new Date(o.created_at).toLocaleDateString()}</td>
             <td>
                 <button class="btn-sm btn-secondary btn-set-active" data-id="${o.id}"><i class="fa-solid fa-feather-pointed"></i> 寫作</button>
+                <button class="btn-sm btn-secondary btn-edit-outline" data-id="${o.id}"><i class="fa-solid fa-pen-to-square"></i> 編輯</button>
             </td>
         `;
         
@@ -536,6 +554,10 @@ function renderProjectOutlinesTable() {
             } catch (err) {
                 console.error("選取章節失敗:", err);
             }
+        });
+        
+        tr.querySelector(".btn-edit-outline").addEventListener("click", () => {
+            openEditOutlineModal(o);
         });
         
         tbody.appendChild(tr);
@@ -1575,5 +1597,114 @@ function navigateTour(direction) {
         triggerConfettiExplosion();
         playDopamineChime();
         closeTour();
+    }
+}
+
+// ==========================================
+// 15. Project & Outline Edits Modals Logic
+// ==========================================
+let editingProjectId = null;
+function openEditProjectModal(project) {
+    editingProjectId = project.id;
+    document.getElementById("edit-proj-name").value = project.name || "";
+    document.getElementById("edit-proj-desc").value = project.description || "";
+    document.getElementById("edit-proj-persona").value = project.persona_prompt || "";
+    document.getElementById("edit-proj-deadline").value = project.deadline ? project.deadline.split("T")[0] : "";
+    document.getElementById("edit-project-modal").classList.remove("hidden");
+}
+
+function closeEditProjectModal() {
+    document.getElementById("edit-project-modal").classList.add("hidden");
+    editingProjectId = null;
+}
+
+async function saveProjectEdits() {
+    if (!editingProjectId) return;
+    const name = document.getElementById("edit-proj-name").value.trim();
+    if (!name) {
+        alert("專案名稱不能為空！");
+        return;
+    }
+    const description = document.getElementById("edit-proj-desc").value.trim();
+    const persona_prompt = document.getElementById("edit-proj-persona").value.trim();
+    const deadline = document.getElementById("edit-proj-deadline").value;
+    
+    try {
+        const res = await fetch(`${API_BASE}/projects/${editingProjectId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                name,
+                description: description || null,
+                persona_prompt: persona_prompt || null,
+                deadline: deadline || null
+            })
+        });
+        if (res.ok) {
+            showToast("專案修改成功");
+            closeEditProjectModal();
+            await refreshProjects();
+            renderProjectList();
+        } else {
+            alert("修改失敗");
+        }
+    } catch(err) {
+        console.error("修改專案出錯:", err);
+        alert("修改出錯，請重試");
+    }
+}
+
+let editingOutlineId = null;
+function openEditOutlineModal(outline) {
+    editingOutlineId = outline.id;
+    document.getElementById("edit-outline-title").value = outline.title || "";
+    document.getElementById("edit-outline-desc").value = outline.description || "";
+    document.getElementById("edit-outline-order").value = outline.sort_order || 0;
+    document.getElementById("edit-outline-modal").classList.remove("hidden");
+}
+
+function closeEditOutlineModal() {
+    document.getElementById("edit-outline-modal").classList.add("hidden");
+    editingOutlineId = null;
+}
+
+async function saveOutlineEdits() {
+    if (!editingOutlineId) return;
+    const title = document.getElementById("edit-outline-title").value.trim();
+    if (!title) {
+        alert("章節名稱不能為空！");
+        return;
+    }
+    const description = document.getElementById("edit-outline-desc").value.trim();
+    const sort_order = parseInt(document.getElementById("edit-outline-order").value) || 0;
+    
+    try {
+        const res = await fetch(`${API_BASE}/outlines/${editingOutlineId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                title,
+                description: description || null,
+                sort_order
+            })
+        });
+        if (res.ok) {
+            showToast("章節大綱修改成功");
+            closeEditOutlineModal();
+            if (state.activeProjectId) {
+                await refreshProjectDetails(state.activeProjectId);
+                renderProjectOutlinesTable();
+                
+                // 同時重載寫作區的章節草稿及引導問題（若當前編輯的正是該活躍章節）
+                if (editingOutlineId === state.activeOutlineNodeId) {
+                    await loadActiveChapterDraft();
+                }
+            }
+        } else {
+            alert("修改失敗");
+        }
+    } catch(err) {
+        console.error("修改章節出錯:", err);
+        alert("修改出錯，請重試");
     }
 }

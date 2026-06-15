@@ -10,7 +10,8 @@ from backend.app.state import state_manager
 from backend.app.models import (
     ProjectCreate, OutlineNodeCreate, TaskCreate, 
     MaterialIngest, StateUpdate, DraftSave, 
-    DraftPolish, DecomposeOutlineRequest, TimerControl
+    DraftPolish, DecomposeOutlineRequest, TimerControl,
+    DraftFuseRequest
 )
 from backend.app.services.scheduler import TaskSchedulerService
 from backend.app.services.resource import ResourceManagerService
@@ -284,6 +285,29 @@ async def polish_draft(req: DraftPolish):
             project_id=req.project_id,
             outline_node_id=req.outline_node_id,
             draft_text=req.draft_text
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/editor/guide", summary="取得 AI 靈感引導問題")
+async def get_editor_guide(project_id: str, outline_node_id: str):
+    try:
+        return await EditorService.generate_guiding_questions(
+            project_id=project_id,
+            outline_node_id=outline_node_id
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/editor/fuse", summary="將引導問答融合成正文草稿")
+async def fuse_editor_answers(req: DraftFuseRequest):
+    try:
+        answers_list = [{"question": item.question, "answer": item.answer} for item in req.answers]
+        result = await EditorService.fuse_answers_to_draft(
+            project_id=req.project_id,
+            outline_node_id=req.outline_node_id,
+            answers=answers_list
         )
         return result
     except Exception as e:

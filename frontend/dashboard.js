@@ -8,6 +8,7 @@ const API_BASE = "http://localhost:8000/api";
 let state = {
     activeProjectId: null,
     activeOutlineNodeId: null,
+    coachLoadedOutlineNodeId: null,
     activeTaskId: null,
     timer: {
         is_running: false,
@@ -44,6 +45,9 @@ async function initApp() {
     
     // 預設切換至 Workspace 標籤頁
     switchTab("workspace");
+
+    // 初始化互動引導嚮導
+    initOnboardingTour();
 }
 
 function setupEventListeners() {
@@ -116,6 +120,15 @@ function setupEventListeners() {
     
     // 寫作工作區 - 採納 AI 潤飾內容
     document.getElementById("btn-apply-polished").addEventListener("click", applyPolishedText);
+    document.getElementById("btn-append-polished").addEventListener("click", appendPolishedText);
+
+    // 寫作工作區 - AI 寫作教練
+    document.getElementById("btn-open-coach").addEventListener("click", toggleCoachPanel);
+    document.getElementById("btn-close-coach").addEventListener("click", () => {
+        document.getElementById("ai-coach-panel").classList.add("hidden");
+    });
+    document.getElementById("btn-reload-coach").addEventListener("click", () => loadCoachQuestions(true));
+    document.getElementById("btn-fuse-answers").addEventListener("click", fuseCoachAnswers);
 }
 
 // ==========================================
@@ -339,6 +352,11 @@ async function handleCreateProject(e) {
             document.getElementById("form-create-project").reset();
             await refreshProjects();
             renderProjectList();
+            
+            // 互動引導嚮導步驟 1 自動跳轉至步驟 2
+            if (typeof currentTourStep !== "undefined" && currentTourStep === 1) {
+                setTimeout(() => goToTourStep(2), 500);
+            }
         }
     } catch (err) {
         console.error("建立專案失敗:", err);
@@ -473,6 +491,11 @@ async function handleAddOutline(e) {
             document.getElementById("form-add-outline").reset();
             await refreshProjectDetails(state.activeProjectId);
             renderProjectOutlinesTable();
+            
+            // 互動引導嚮導步驟 2 自動跳轉至步驟 3
+            if (typeof currentTourStep !== "undefined" && currentTourStep === 2) {
+                setTimeout(() => goToTourStep(3), 500);
+            }
         }
     } catch (err) {
         console.error("新增章節失敗:", err);
@@ -583,6 +606,11 @@ async function loadActiveChapterDraft() {
         
         // 切換章節時，自動觸發一次材料推薦（依據目前章節或草稿）
         await fetchRAGContextMaterials(activeNode.content);
+
+        // 如果引導教練面板正開啟，重新載入引導問題
+        if (!document.getElementById("ai-coach-panel").classList.contains("hidden")) {
+            await loadCoachQuestions();
+        }
     }
 }
 
@@ -669,6 +697,13 @@ async function polishDraftText() {
         if (data.polished_content.includes("離線模擬")) {
             showToast("本地 AI 離線，已啟用 Mock 降級模擬");
         }
+
+        // 互動引導嚮導步驟 5 完成時，引導進入最後完成階段
+        if (typeof currentTourStep !== "undefined" && currentTourStep === 5) {
+            setTimeout(() => {
+                navigateTour(1);
+            }, 3000);
+        }
     } catch (err) {
         console.error("AI 潤飾失敗:", err);
         btn.disabled = false;
@@ -682,7 +717,25 @@ function applyPolishedText() {
     document.getElementById("draft-textarea").value = polishedText;
     document.getElementById("polish-result-wrapper").classList.add("hidden");
     document.getElementById("polish-placeholder").classList.remove("hidden");
-    document.getElementById("polish-placeholder").innerText = "已套用潤飾結果。建議您隨時按「暫存草稿」保存！";
+    document.getElementById("polish-placeholder").innerText = "已採納並覆蓋草稿。建議您隨時按「暫存草稿」保存！";
+    
+    const statusBadge = document.getElementById("chapter-status-badge");
+    statusBadge.innerText = "POLISH";
+    statusBadge.className = "status-badge polish";
+}
+
+function appendPolishedText() {
+    const polishedText = document.getElementById("polished-text-box").innerText;
+    const textarea = document.getElementById("draft-textarea");
+    const existing = textarea.value.trim();
+    if (existing) {
+        textarea.value = existing + "\n\n" + polishedText;
+    } else {
+        textarea.value = polishedText;
+    }
+    document.getElementById("polish-result-wrapper").classList.add("hidden");
+    document.getElementById("polish-placeholder").classList.remove("hidden");
+    document.getElementById("polish-placeholder").innerText = "已採納並累加到尾端。建議您隨時按「暫存草稿」保存！";
     
     const statusBadge = document.getElementById("chapter-status-badge");
     statusBadge.innerText = "POLISH";
@@ -908,6 +961,11 @@ async function handleIngestMaterial(e) {
             document.getElementById("form-ingest-material").reset();
             showToast("知識庫上傳成功且向量隔離已建立");
             await renderUploadedMaterialsList();
+            
+            // 互動引導嚮導步驟 4 自動跳轉至步驟 5
+            if (typeof currentTourStep !== "undefined" && currentTourStep === 4) {
+                setTimeout(() => goToTourStep(5), 500);
+            }
         }
     } catch (err) {
         console.error("匯入知識庫失敗:", err);
@@ -1050,6 +1108,11 @@ async function handleDecomposeOutline() {
             showToast("AI 拆解微任務成功！");
             await refreshDailySchedule();
             switchTab("scheduler");
+            
+            // 互動引導嚮導步驟 3 自動跳轉至步驟 4
+            if (typeof currentTourStep !== "undefined" && currentTourStep === 3) {
+                setTimeout(() => goToTourStep(4), 1000);
+            }
         }
     } catch(e) {
         console.error("AI 拆解失敗:", e);
@@ -1209,4 +1272,308 @@ function showToast(message) {
             { opacity: 0 }
         ], { duration: 300 }).onfinish = () => toast.remove();
     }, 3000);
+}
+
+// ==========================================
+// 13.5 AI Writing Coach (Interactive Guidance)
+// ==========================================
+let coachQuestionsList = [];
+
+async function toggleCoachPanel() {
+    if (!state.activeProjectId || !state.activeOutlineNodeId) {
+        alert("請先選擇一個專案與章節！");
+        return;
+    }
+    
+    const panel = document.getElementById("ai-coach-panel");
+    panel.classList.toggle("hidden");
+    
+    if (!panel.classList.contains("hidden")) {
+        await loadCoachQuestions();
+    }
+}
+
+async function loadCoachQuestions(force = false) {
+    if (!state.activeProjectId || !state.activeOutlineNodeId) return;
+    
+    let debugEl = document.getElementById("coach-debug-info");
+    if (!debugEl) {
+        debugEl = document.createElement("div");
+        debugEl.id = "coach-debug-info";
+        debugEl.style.fontSize = "9px";
+        debugEl.style.color = "rgba(255, 255, 255, 0.4)";
+        debugEl.style.marginTop = "10px";
+        debugEl.style.borderTop = "1px dashed rgba(255, 255, 255, 0.1)";
+        debugEl.style.paddingTop = "5px";
+        debugEl.style.fontFamily = "monospace";
+        debugEl.style.wordBreak = "break-all";
+        const coachBody = document.querySelector(".coach-body");
+        if (coachBody) coachBody.appendChild(debugEl);
+    }
+    
+    const cleanStack = (new Error().stack || "").split("\n").slice(1, 4).join(" | ").replace(/http:\/\/localhost:8000\/frontend\//g, "");
+    
+    // 如果不是強制刷新，且已經載入過當前章節的引導問題，則直接跳過，避免重複載入或打字中被重新整理
+    if (!force && state.coachLoadedOutlineNodeId === state.activeOutlineNodeId) {
+        if (debugEl) debugEl.innerHTML = `[Debug] 跳過載入於 ${new Date().toLocaleTimeString()} (原因: 已存在 | 來源: ${cleanStack})`;
+        return;
+    }
+    
+    if (debugEl) debugEl.innerHTML = `[Debug] 載入問題中... ${new Date().toLocaleTimeString()} (Force: ${force} | 來源: ${cleanStack})`;
+    
+    const container = document.getElementById("coach-questions-container");
+    container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin text-cyan"></i> AI 正在為您設計引導問題...</div>';
+    
+    try {
+        const res = await fetch(`${API_BASE}/editor/guide?project_id=${state.activeProjectId}&outline_node_id=${state.activeOutlineNodeId}`);
+        if (!res.ok) throw new Error("獲取引導問題失敗");
+        
+        const data = await res.json();
+        coachQuestionsList = data.questions || [];
+        
+        container.innerHTML = "";
+        if (coachQuestionsList.length === 0) {
+            container.innerHTML = '<div class="empty-state">無法產生引導問題，請重試。</div>';
+            return;
+        }
+        
+        coachQuestionsList.forEach((q, idx) => {
+            const item = document.createElement("div");
+            item.className = "coach-q-item";
+            item.innerHTML = `
+                <label class="coach-q-label">問題 ${idx + 1}：${q}</label>
+                <textarea class="coach-q-input" id="coach-ans-${idx}" placeholder="簡短回答您的想法...不需要完整句子，單字或碎片詞彙也可！"></textarea>
+            `;
+            container.appendChild(item);
+        });
+        
+        // 成功載入，紀錄當前章節 ID 避免重複載入
+        state.coachLoadedOutlineNodeId = state.activeOutlineNodeId;
+    } catch (e) {
+        console.error("載入寫作教練問題失敗:", e);
+        container.innerHTML = '<div class="empty-state">載入失敗，請檢查本地 API 是否開啟。</div>';
+    }
+}
+
+async function fuseCoachAnswers() {
+    if (!state.activeProjectId || !state.activeOutlineNodeId) {
+        alert("請先選擇專案與章節！");
+        return;
+    }
+    
+    const btn = document.getElementById("btn-fuse-answers");
+    const originalText = btn.innerHTML;
+    
+    // 收集答案
+    const answers = [];
+    let hasAnswer = false;
+    for (let idx = 0; idx < coachQuestionsList.length; idx++) {
+        const ansVal = document.getElementById(`coach-ans-${idx}`).value;
+        answers.push({
+            question: coachQuestionsList[idx],
+            answer: ansVal
+        });
+        if (ansVal.trim()) hasAnswer = true;
+    }
+    
+    if (!hasAnswer) {
+        alert("請至少回答一個問題以進行融合！");
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 融合創作中...';
+    
+    try {
+        const res = await fetch(`${API_BASE}/editor/fuse`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                project_id: state.activeProjectId,
+                outline_node_id: state.activeOutlineNodeId,
+                answers: answers
+            })
+        });
+        
+        if (!res.ok) throw new Error("融合失敗");
+        const data = await res.json();
+        
+        if (data.fused_draft) {
+            // 把融合完成的草稿累加或寫入主 TextArea
+            const textarea = document.getElementById("draft-textarea");
+            const existing = textarea.value.trim();
+            if (existing) {
+                textarea.value = existing + "\n\n" + data.fused_draft;
+            } else {
+                textarea.value = data.fused_draft;
+            }
+            
+            // 自動儲存一次草稿
+            await saveDraftText();
+            
+            showToast("AI 已將您的靈感融合成初稿！");
+            
+            // 關閉 Coach Panel
+            document.getElementById("ai-coach-panel").classList.add("hidden");
+            // 重設紀錄，下次再打開時重新載入新問題
+            state.coachLoadedOutlineNodeId = null;
+        }
+    } catch (e) {
+        console.error("融合失敗:", e);
+        showToast("融合失敗，請檢查本地 AI 是否運行");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// ==========================================================================
+// 14. Interactive Onboarding Tour Engine
+// ==========================================================================
+let currentTourStep = 1;
+const tourSteps = {
+    1: {
+        title: "步驟 1：建立寫作專案",
+        desc: "每一個大作都有一個起點。點擊左側導航的<strong>『專案管理』</strong>，並在左邊的表單填寫專案名稱、描述與最重要的 Persona（文風 Prompt，例如：硬核科幻小說風格），點擊『建立專案』！",
+        tab: "projects",
+        highlightSelector: "#form-create-project"
+    },
+    2: {
+        title: "步驟 2：建立章節大綱",
+        desc: "有了專案後，請在右側的<strong>『專案大綱結構管理』</strong>區域中，輸入您的第一個章節名稱（如：第一章：覺醒），點擊『新增章節』按鈕。",
+        tab: "projects",
+        highlightSelector: "#project-outline-manager-panel"
+    },
+    3: {
+        title: "步驟 3：AI 拆解微任務 (ADHD 友善)",
+        desc: "單一任務太大容易讓人退縮？選取該大綱後點擊<strong>『AI 拆解微任務』</strong>，輸入情節，AI 就會自動將其切碎成多個 20 分鐘的具體微小任務！",
+        tab: "projects",
+        highlightSelector: "#project-outline-manager-panel table"
+    },
+    4: {
+        title: "步驟 4：匯入背景素材 (RAG 知識庫)",
+        desc: "切換到<strong>『背景知識庫』</strong>分頁。在這裡您可以上傳文獻或世界觀設定。寫作時，AI 向量庫會自動根據您的內容撈取並推薦這些資料！",
+        tab: "materials",
+        highlightSelector: "#form-ingest-material"
+    },
+    5: {
+        title: "步驟 5：寫作工作區與 AI 潤飾",
+        desc: "現在，點擊左側<strong>『寫作工作區』</strong>。選擇您的活躍章節，點擊啟動計時器開始聚焦！在下方寫下草稿，點擊<strong>『一鍵潤飾 (AI)』</strong>，AI 就會自動為您潤色！完成後還能播放多巴胺音效慶祝！",
+        tab: "workspace",
+        highlightSelector: ".workspace-center"
+    }
+};
+
+function initOnboardingTour() {
+    const wizard = document.getElementById("onboarding-wizard");
+    const btnPrev = document.getElementById("btn-wizard-prev");
+    const btnNext = document.getElementById("btn-wizard-next");
+    const btnClose = document.getElementById("btn-close-wizard");
+    const btnStart = document.getElementById("btn-start-tour");
+
+    if (!wizard) return;
+
+    btnPrev.addEventListener("click", () => navigateTour(-1));
+    btnNext.addEventListener("click", () => navigateTour(1));
+    btnClose.addEventListener("click", closeTour);
+    btnStart.addEventListener("click", startTour);
+
+    // 點擊進度小點也可以切換
+    document.querySelectorAll(".step-dot").forEach(dot => {
+        dot.addEventListener("click", (e) => {
+            const step = parseInt(e.target.getAttribute("data-step"));
+            goToTourStep(step);
+        });
+    });
+
+    // 載入時，如果使用者還沒有任何專案，自動開啟導覽
+    setTimeout(() => {
+        if (!state.projects || state.projects.length === 0) {
+            startTour();
+        } else {
+            // 如果已有專案，隱藏引導並顯示浮動重啟按鈕
+            closeTour();
+        }
+    }, 1000);
+}
+
+function startTour() {
+    currentTourStep = 1;
+    document.getElementById("onboarding-wizard").classList.remove("hidden");
+    document.getElementById("btn-start-tour").classList.add("hidden");
+    goToTourStep(1);
+}
+
+function closeTour() {
+    document.getElementById("onboarding-wizard").classList.add("hidden");
+    document.getElementById("btn-start-tour").classList.remove("hidden");
+    removeHighlights();
+}
+
+function removeHighlights() {
+    document.querySelectorAll(".highlight-glow").forEach(el => {
+        el.classList.remove("highlight-glow");
+    });
+}
+
+function goToTourStep(step) {
+    if (step < 1 || step > 5) return;
+    currentTourStep = step;
+    
+    const stepData = tourSteps[step];
+    
+    // 更新標題與描述
+    document.getElementById("wizard-step-title").innerHTML = stepData.title;
+    document.getElementById("wizard-step-desc").innerHTML = stepData.desc;
+    
+    // 更新導覽按鈕狀態
+    document.getElementById("btn-wizard-prev").disabled = (step === 1);
+    const btnNext = document.getElementById("btn-wizard-next");
+    if (step === 5) {
+        btnNext.innerHTML = "完成導覽 <i class='fa-solid fa-check'></i>";
+    } else {
+        btnNext.innerHTML = "下一步 <i class='fa-solid fa-arrow-right'></i>";
+    }
+
+    // 更新進度小點樣式
+    document.querySelectorAll(".step-dot").forEach(dot => {
+        const dotStep = parseInt(dot.getAttribute("data-step"));
+        dot.classList.remove("active", "completed");
+        if (dotStep === step) {
+            dot.classList.add("active");
+        } else if (dotStep < step) {
+            dot.classList.add("completed");
+        }
+    });
+
+    // 自動切換至對應的 Tab
+    if (stepData.tab) {
+        switchTab(stepData.tab);
+    }
+
+    // 移除舊的高亮，並套用新的高亮
+    removeHighlights();
+    setTimeout(() => {
+        if (stepData.highlightSelector) {
+            const targetEl = document.querySelector(stepData.highlightSelector);
+            if (targetEl) {
+                targetEl.classList.add("highlight-glow");
+                // 捲動至該元素以方便檢視
+                targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        }
+    }, 300);
+}
+
+function navigateTour(direction) {
+    const nextStep = currentTourStep + direction;
+    if (nextStep >= 1 && nextStep <= 5) {
+        goToTourStep(nextStep);
+    } else if (nextStep > 5) {
+        // 點擊「完成導覽」
+        showToast("恭喜完成 Monocle 核心功能導航！開始您的創作吧！🚀");
+        triggerConfettiExplosion();
+        playDopamineChime();
+        closeTour();
+    }
 }

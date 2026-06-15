@@ -116,12 +116,35 @@
                                     <h2 id="editor-current-chapter-title">請選擇章節開始寫作</h2>
                                 </div>
                                 <div class="editor-actions">
+                                    <button class="btn-secondary" id="btn-open-coach" title="開啟 AI 靈感引導教練"><i class="fa-solid fa-lightbulb"></i> 靈感引導</button>
                                     <button class="btn-secondary" id="btn-save-draft"><i class="fa-solid fa-floppy-disk"></i> 暫存草稿</button>
                                     <button class="btn-primary" id="btn-polish-draft"><i class="fa-solid fa-wand-magic-sparkles"></i> 一鍵潤飾 (AI)</button>
                                 </div>
                             </div>
-                            <div class="editor-body">
-                                <textarea id="draft-textarea" placeholder="在這裡寫下您的碎片化草稿或靈感靈光...草稿模式下無需介意錯字與排版，儘管記錄下來！"></textarea>
+                            <div class="editor-body-wrapper">
+                                <div class="editor-body">
+                                    <textarea id="draft-textarea" placeholder="在這裡寫下您的碎片化草稿或靈感靈光...草稿模式下無需介意錯字與排版，儘管記錄下來！"></textarea>
+                                </div>
+                                
+                                <!-- AI 寫作教練引導面板 -->
+                                <div id="ai-coach-panel" class="coach-panel hidden">
+                                    <div class="coach-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <h3><i class="fa-solid fa-graduation-cap text-cyan"></i> AI 靈感引導教練</h3>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <button id="btn-reload-coach" title="重新整理問題" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-rotate-right"></i></button>
+                                            <button id="btn-close-coach" class="coach-close-btn" style="padding: 4px; line-height: 1;">&times;</button>
+                                        </div>
+                                    </div>
+                                    <div class="coach-body">
+                                        <p class="coach-intro">別盯著空白頁面發呆！回答以下三個小問題，AI 會幫您融合成生動的寫作草稿：</p>
+                                        <div id="coach-questions-container">
+                                            <div class="empty-state">請選擇一個大綱章節以開啟 AI 靈感引導。</div>
+                                        </div>
+                                    </div>
+                                    <div class="coach-footer">
+                                        <button class="btn-primary btn-full" id="btn-fuse-answers"><i class="fa-solid fa-puzzle-piece"></i> 融合成正文草稿</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -144,7 +167,10 @@
                                     <div id="polish-placeholder" class="empty-state">等待 AI 潤飾執行...</div>
                                     <div id="polish-result-wrapper" class="hidden">
                                         <div class="result-text" id="polished-text-box"></div>
-                                        <button class="btn-primary btn-full" id="btn-apply-polished"><i class="fa-solid fa-check"></i> 採納並覆蓋草稿</button>
+                                        <div class="polish-actions-group" style="display: flex; gap: 8px; margin-top: 12px;">
+                                            <button class="btn-primary" id="btn-apply-polished" style="flex: 1; padding: 10px 6px; font-size: 13px;"><i class="fa-solid fa-check"></i> 採納並覆蓋</button>
+                                            <button class="btn-secondary" id="btn-append-polished" style="flex: 1; padding: 10px 6px; font-size: 13px;"><i class="fa-solid fa-plus"></i> 採納並累加</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -350,6 +376,38 @@
 
     <!-- 粒子撒紙花 Canvas -->
     <canvas id="confetti-canvas"></canvas>
+
+    <!-- 互動式新手引導 Wizard -->
+    <div id="onboarding-wizard" class="glass-card onboarding-wizard-card">
+        <div class="wizard-header">
+            <div class="wizard-title">
+                <i class="fa-solid fa-compass text-cyan"></i>
+                <span>Monocle 寫作嚮導</span>
+            </div>
+            <button id="btn-close-wizard" class="wizard-close-btn">&times;</button>
+        </div>
+        <div class="wizard-body">
+            <div class="wizard-steps-progress">
+                <span class="step-dot active" data-step="1">1</span>
+                <span class="step-dot" data-step="2">2</span>
+                <span class="step-dot" data-step="3">3</span>
+                <span class="step-dot" data-step="4">4</span>
+                <span class="step-dot" data-step="5">5</span>
+            </div>
+            <h4 id="wizard-step-title">步驟 1：建立新專案</h4>
+            <p id="wizard-step-desc">請切換至「專案管理」標籤頁，並在左側填寫表單建立一個專案，設定它的寫作風格 (Persona)。</p>
+        </div>
+        <div class="wizard-footer">
+            <button id="btn-wizard-prev" class="btn-sm btn-secondary" disabled>上一步</button>
+            <button id="btn-wizard-next" class="btn-sm btn-primary">下一步</button>
+        </div>
+    </div>
+
+    <!-- 重新開啟引導的浮動按鈕 -->
+    <button id="btn-start-tour" class="btn-tour-trigger hidden">
+        <i class="fa-solid fa-compass"></i>
+        <span>開啟寫作導航</span>
+    </button>
 
     <script src="dashboard.js"></script>
 </body>

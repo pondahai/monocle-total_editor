@@ -48,3 +48,12 @@ class DecomposeOutlineRequest(BaseModel):
 class TimerControl(BaseModel):
     action: str = Field(..., description="start, pause, reset")
     duration_seconds: Optional[int] = 1200
+
+class AnswerItem(BaseModel):
+    question: str
+    answer: str
+
+class DraftFuseRequest(BaseModel):
+    project_id: str
+    outline_node_id: str
+    answers: List[AnswerItem]

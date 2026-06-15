@@ -855,12 +855,21 @@ body {
 }
 
 .project-cards-grid {
-    flex-grow: 1;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
     padding: 20px;
+}
+
+.project-outline-manager {
+    display: flex;
+    flex-direction: column;
+    flex: 2;
+    min-height: 0;
+    overflow: hidden;
 }
 
 /* Project Card */
@@ -910,6 +919,7 @@ body {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
     overflow: hidden;
 }
 
